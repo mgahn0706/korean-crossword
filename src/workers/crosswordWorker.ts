@@ -6,6 +6,7 @@ import type { CrosswordGrid } from "../lib/crossword/types";
 type WorkerRequest = {
   id: number;
   grid: CrosswordGrid;
+  customWords: string[];
 };
 
 type WorkerResponse =
@@ -32,7 +33,11 @@ async function loadDictionaries() {
 workerScope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   try {
     const dictionaries = await loadDictionaries();
-    const result = solveCrosswordWithPrepared(event.data.grid, dictionaries);
+    const orderedDictionaries =
+      event.data.customWords.length > 0
+        ? [prepareDictionary(event.data.customWords), ...dictionaries]
+        : dictionaries;
+    const result = solveCrosswordWithPrepared(event.data.grid, orderedDictionaries);
     const payload: WorkerResponse = result.success
       ? { id: event.data.id, success: true, grid: result.grid }
       : { id: event.data.id, success: false, reason: result.reason };

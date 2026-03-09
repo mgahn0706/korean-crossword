@@ -25,7 +25,18 @@ function normalizeWord(word: string): string {
     return "";
   }
 
-  return assemble([disassemble(normalized)]);
+  const compact = normalized.replace(/\s+/g, "");
+  const cleaned = compact.replace(/[^\p{Script=Hangul}\p{Letter}\p{Number}]/gu, "");
+
+  if (cleaned === "") {
+    return "";
+  }
+
+  try {
+    return assemble([disassemble(cleaned)]);
+  } catch {
+    return cleaned;
+  }
 }
 
 function createBitset(size: number, fill = false): Uint32Array {
