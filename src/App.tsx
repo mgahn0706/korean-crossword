@@ -6,6 +6,7 @@ import "./App.css";
 
 const DEFAULT_ROWS = 5;
 const DEFAULT_COLS = 5;
+const DEFAULT_ATTEMPT_COUNT = 5;
 type SymmetryMode = "rotational" | "horizontal" | "vertical" | "none";
 
 type WorkerResponse =
@@ -16,6 +17,7 @@ type WorkerRequest = {
   id: number;
   grid: CrosswordGrid;
   customWords: string[];
+  attemptCount: number;
 };
 type FeatureMode = "grid" | "lookup" | "clue";
 type ClueDirection = "Across" | "Down";
@@ -35,9 +37,9 @@ type DictionarySets = {
 type ClueValidation = "incomplete" | "loading" | "common" | "noun" | "missing";
 
 const FEATURE_MODE_LABELS: Record<FeatureMode, string> = {
-  grid: "Grid overview",
-  lookup: "Word lookup",
-  clue: "Clue author",
+  grid: "격자 개요",
+  lookup: "단어 찾기",
+  clue: "힌트 작성",
 };
 const CLUE_STATUS_LABELS: Record<ClueValidation, string> = {
   incomplete: "미완성",
@@ -269,6 +271,7 @@ function getSymmetricCells(
 function App() {
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [cols, setCols] = useState(DEFAULT_COLS);
+  const [attemptCount, setAttemptCount] = useState(DEFAULT_ATTEMPT_COUNT);
   const [grid, setGrid] = useState<CrosswordGrid>(() =>
     createGrid(DEFAULT_ROWS, DEFAULT_COLS)
   );
@@ -282,7 +285,7 @@ function App() {
     null
   );
   const [isSolving, setIsSolving] = useState(false);
-  const [status, setStatus] = useState("Ready to recommend a fill.");
+  const [status, setStatus] = useState("격자 추천을 시작할 수 있습니다.");
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef(0);
 
@@ -382,13 +385,13 @@ function App() {
       currentGrid.map((row) => row.map((cell) => (cell === "#" ? "#" : "")))
     );
     setHiddenClueIds(new Set());
-    setStatus("Letters cleared.");
+    setStatus("글자를 지웠습니다.");
   };
 
   const handleClearAll = () => {
     setGrid(createGrid(rows, cols));
     setHiddenClueIds(new Set());
-    setStatus("Grid and black cells cleared.");
+    setStatus("격자와 검은 칸을 모두 지웠습니다.");
   };
 
   const handleRecommendFill = async () => {
@@ -402,7 +405,7 @@ function App() {
 
     setIsSolving(true);
     setStatus(
-      "Searching for a grid with the fewest invalid words first, then favoring common nouns and balanced across/down fills."
+      "유효하지 않은 단어를 최소화하면서 흔한 명사와 가로세로 균형을 우선해 격자를 찾는 중입니다."
     );
 
     const result = await new Promise<WorkerResponse>((resolve, reject) => {
@@ -419,12 +422,17 @@ function App() {
       const handleError = () => {
         worker.removeEventListener("message", handleMessage);
         worker.removeEventListener("error", handleError);
-        reject(new Error("The crossword worker crashed."));
+        reject(new Error("크로스워드 작업기가 중단되었습니다."));
       };
 
       worker.addEventListener("message", handleMessage);
       worker.addEventListener("error", handleError, { once: true });
-      const payload: WorkerRequest = { id: requestId, grid, customWords };
+      const payload: WorkerRequest = {
+        id: requestId,
+        grid,
+        customWords,
+        attemptCount,
+      };
       worker.postMessage(payload);
     }).finally(() => {
       setIsSolving(false);
@@ -434,7 +442,7 @@ function App() {
       startTransition(() => {
         setGrid(result.grid);
       });
-      setStatus("Best-effort grid recommendation applied.");
+      setStatus("추천 격자를 적용했습니다.");
       return;
     }
 
@@ -484,6 +492,27 @@ function App() {
   };
   const isDuplicateAnswer = (answer: string) =>
     (duplicateAnswerCounts.get(answer) ?? 0) > 1;
+  const totalEntryLength = clueEntries.reduce(
+    (sum, entry) => sum + entry.length,
+    0
+  );
+  const invalidEntryCount = clueEntries.reduce(
+    (count, entry) =>
+      count + (getValidation(entry.answer) === "missing" ? 1 : 0),
+    0
+  );
+  const filledEntryCount = clueEntries.reduce(
+    (count, entry) => count + (!entry.answer.includes("·") ? 1 : 0),
+    0
+  );
+  const averageEntryLength =
+    clueEntries.length > 0
+      ? (totalEntryLength / clueEntries.length).toFixed(1)
+      : "0.0";
+  const longestEntryLength = clueEntries.reduce(
+    (max, entry) => Math.max(max, entry.length),
+    0
+  );
   const cellNumbers = getVisibleCellNumbers(grid, clueEntries, hiddenClueIds);
   const hiddenEntries = clueEntries.filter((entry) =>
     hiddenClueIds.has(entry.id)
@@ -499,7 +528,7 @@ function App() {
           <p className="builder-description">NYT style crossword를 한글로.</p>
         </div>
 
-        <nav className="mode-switch" aria-label="Feature mode">
+        <nav className="mode-switch" aria-label="기능 모드">
           {(
             Object.entries(FEATURE_MODE_LABELS) as Array<[FeatureMode, string]>
           ).map(([mode, label]) => (
@@ -531,22 +560,17 @@ function App() {
         </section>
 
         <aside className="builder-panel">
-          <div className="panel-header">
-            <p className="section-eyebrow">Feature mode</p>
-            <h2>{FEATURE_MODE_LABELS[activeMode]}</h2>
-          </div>
-
           {activeMode === "grid" ? (
             <div className="config-stack">
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Grid Setup</p>
-                  <h3>Board configuration</h3>
+                  <p className="section-eyebrow">격자 설정</p>
+                  <h3>보드 구성</h3>
                 </div>
 
                 <div className="controls controls-two-column">
                   <label className="field">
-                    <span>Rows</span>
+                    <span>행</span>
                     <input
                       type="number"
                       min="1"
@@ -559,7 +583,7 @@ function App() {
                   </label>
 
                   <label className="field">
-                    <span>Columns</span>
+                    <span>열</span>
                     <input
                       type="number"
                       min="1"
@@ -572,17 +596,17 @@ function App() {
                   </label>
 
                   <label className="field field-full">
-                    <span>Symmetry</span>
+                    <span>대칭</span>
                     <select
                       value={symmetry}
                       onChange={(event) =>
                         setSymmetry(event.target.value as SymmetryMode)
                       }
                     >
-                      <option value="rotational">Rotational</option>
-                      <option value="horizontal">Horizontal</option>
-                      <option value="vertical">Vertical</option>
-                      <option value="none">None</option>
+                      <option value="rotational">회전 대칭</option>
+                      <option value="horizontal">가로 대칭</option>
+                      <option value="vertical">세로 대칭</option>
+                      <option value="none">없음</option>
                     </select>
                   </label>
                 </div>
@@ -590,8 +614,55 @@ function App() {
 
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Grid Fill</p>
-                  <h3>Best-effort recommendation</h3>
+                  <p className="section-eyebrow">격자 통계</p>
+                  <h3>단어 개요</h3>
+                </div>
+
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <span className="stats-label">단어 수</span>
+                    <strong>{clueEntries.length}</strong>
+                    <p>
+                      가로 {acrossClues.length}개, 세로 {downClues.length}개
+                    </p>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stats-label">단어 길이</span>
+                    <strong>{averageEntryLength}</strong>
+                    <p>평균, 최장 {longestEntryLength}</p>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stats-label">비표준어 수</span>
+                    <strong>{invalidEntryCount}</strong>
+                    <p>완성된 단어 {filledEntryCount}개</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="config-card">
+                <div className="section-heading">
+                  <p className="section-eyebrow">격자 채우기</p>
+                  <h3>추천 채우기</h3>
+                </div>
+
+                <div className="controls">
+                  <label className="field">
+                    <span>추천 시도 횟수</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={attemptCount}
+                      onChange={(event) =>
+                        setAttemptCount(
+                          Math.min(
+                            20,
+                            Math.max(1, event.target.valueAsNumber || 1)
+                          )
+                        )
+                      }
+                    />
+                  </label>
                 </div>
 
                 <div className="actions">
@@ -602,7 +673,7 @@ function App() {
                       onClick={handleClearGrid}
                       disabled={isSolving}
                     >
-                      Clear Grid
+                      글자 지우기
                     </button>
                     <button
                       className="action-button action-button-secondary"
@@ -610,7 +681,7 @@ function App() {
                       onClick={handleClearAll}
                       disabled={isSolving}
                     >
-                      Clear All
+                      모두 지우기
                     </button>
                   </div>
                   <button
@@ -619,7 +690,7 @@ function App() {
                     onClick={() => void handleRecommendFill()}
                     disabled={isSolving}
                   >
-                    {isSolving ? "Filling Grid..." : "Recommend Grid"}
+                    {isSolving ? "격자 채우는 중..." : "격자 추천"}
                   </button>
                   <p className="status-text">{status}</p>
                 </div>
@@ -631,12 +702,12 @@ function App() {
             <div className="config-stack">
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Word Sources</p>
-                  <h3>Custom list</h3>
+                  <p className="section-eyebrow">단어 목록</p>
+                  <h3>사용자 목록</h3>
                 </div>
 
                 <label className="field">
-                  <span>Words</span>
+                  <span>단어</span>
                   <textarea
                     className="word-list-input"
                     value={customWordText}
@@ -645,24 +716,23 @@ function App() {
                   />
                 </label>
                 <p className="helper-text">
-                  Add one word per line or separate with commas. Recommendations
-                  use this list before the built-in noun sets.
+                  한 줄에 하나씩 입력하거나 쉼표로 구분하세요. 추천 시 이 목록을 기본 사전보다 먼저 사용합니다.
                 </p>
               </section>
 
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Lookup</p>
-                  <h3>Filter current list</h3>
+                  <p className="section-eyebrow">검색</p>
+                  <h3>현재 목록 필터</h3>
                 </div>
 
                 <label className="field">
-                  <span>Search</span>
+                  <span>검색어</span>
                   <input
                     type="text"
                     value={lookupQuery}
                     onChange={(event) => setLookupQuery(event.target.value)}
-                    placeholder="Type to filter your words"
+                    placeholder="단어를 검색하세요"
                   />
                 </label>
 
@@ -675,7 +745,7 @@ function App() {
                     ))
                   ) : (
                     <p className="empty-state">
-                      No matching words in your current list.
+                      현재 목록에 일치하는 단어가 없습니다.
                     </p>
                   )}
                 </div>
@@ -687,8 +757,8 @@ function App() {
             <div className="config-stack">
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Across</p>
-                  <h3>{acrossClues.length} entries</h3>
+                  <p className="section-eyebrow">가로</p>
+                  <h3>{acrossClues.length}개 항목</h3>
                 </div>
 
                 <div className="clue-list">
@@ -701,7 +771,7 @@ function App() {
                             {entry.answer} ({entry.length})
                           </span>
                           {isDuplicateAnswer(entry.answer) ? (
-                            <span className="clue-warning">duplicate</span>
+                            <span className="clue-warning">중복</span>
                           ) : null}
                           <span
                             className={`clue-status clue-status-${getValidation(
@@ -726,7 +796,7 @@ function App() {
                                 })
                               }
                             >
-                              {hiddenClueIds.has(entry.id) ? "Restore" : "Hide"}
+                              {hiddenClueIds.has(entry.id) ? "복원" : "숨김"}
                             </button>
                           ) : null}
                         </div>
@@ -739,20 +809,20 @@ function App() {
                               [entry.id]: event.target.value,
                             }))
                           }
-                          placeholder="Write the across clue"
+                          placeholder="가로 힌트를 입력하세요"
                         />
                       </label>
                     ))
                   ) : (
-                    <p className="empty-state">No across clues yet.</p>
+                    <p className="empty-state">아직 가로 힌트가 없습니다.</p>
                   )}
                 </div>
               </section>
 
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Down</p>
-                  <h3>{downClues.length} entries</h3>
+                  <p className="section-eyebrow">세로</p>
+                  <h3>{downClues.length}개 항목</h3>
                 </div>
 
                 <div className="clue-list">
@@ -765,7 +835,7 @@ function App() {
                             {entry.answer} ({entry.length})
                           </span>
                           {isDuplicateAnswer(entry.answer) ? (
-                            <span className="clue-warning">duplicate</span>
+                            <span className="clue-warning">중복</span>
                           ) : null}
                           <span
                             className={`clue-status clue-status-${getValidation(
@@ -790,7 +860,7 @@ function App() {
                                 })
                               }
                             >
-                              {hiddenClueIds.has(entry.id) ? "Restore" : "Hide"}
+                              {hiddenClueIds.has(entry.id) ? "복원" : "숨김"}
                             </button>
                           ) : null}
                         </div>
@@ -803,12 +873,12 @@ function App() {
                               [entry.id]: event.target.value,
                             }))
                           }
-                          placeholder="Write the down clue"
+                          placeholder="세로 힌트를 입력하세요"
                         />
                       </label>
                     ))
                   ) : (
-                    <p className="empty-state">No down clues yet.</p>
+                    <p className="empty-state">아직 세로 힌트가 없습니다.</p>
                   )}
                 </div>
               </section>

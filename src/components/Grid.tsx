@@ -178,7 +178,7 @@ export function Grid({
                   ref={(element) => {
                     inputRefs.current[inputIndex] = element;
                   }}
-                  aria-label={`Row ${rowIndex + 1} Column ${colIndex + 1}`}
+                  aria-label={`${rowIndex + 1}행 ${colIndex + 1}열`}
                   className={`grid-cell${isBlack ? " grid-cell-black" : ""}`}
                   type="text"
                   inputMode="text"

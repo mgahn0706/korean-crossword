@@ -7,6 +7,7 @@ type WorkerRequest = {
   id: number;
   grid: CrosswordGrid;
   customWords: string[];
+  attemptCount: number;
 };
 
 type WorkerResponse =
@@ -42,7 +43,8 @@ const workerScope = self as DedicatedWorkerGlobalScope;
 const PLACEHOLDER_LETTERS = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ"];
 const MAX_CANDIDATES_PER_SLOT = 20;
 const MAX_SEARCH_STEPS = 1200;
-const ATTEMPT_COUNT = 5;
+const DEFAULT_ATTEMPT_COUNT = 5;
+const MAX_ATTEMPT_COUNT = 20;
 
 let dictionariesPromise: Promise<PreparedDictionary[]> | null = null;
 
@@ -423,13 +425,18 @@ function recommendGrid(
   initialGrid: CrosswordGrid,
   dictionaries: PreparedDictionary[],
   commonDictionary: PreparedDictionary,
+  attemptCount: number,
 ): CrosswordGrid {
   const slots = extractSlots(initialGrid);
   const wordSets = buildWordSets(dictionaries);
   const commonWordSets = buildWordSets([commonDictionary]);
   let bestRecommendation: { grid: CrosswordGrid; score: RecommendationScore } | null = null;
+  const totalAttempts = Math.min(
+    MAX_ATTEMPT_COUNT,
+    Math.max(1, Math.floor(attemptCount) || DEFAULT_ATTEMPT_COUNT),
+  );
 
-  for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
+  for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
     const grid = initialGrid.map((row) => [...row]);
     let bestGrid = grid.map((row) => [...row]);
     let bestAcrossCount = 0;
@@ -576,7 +583,12 @@ workerScope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       event.data.customWords.length > 0
         ? [prepareDictionary(event.data.customWords), ...dictionaries]
         : dictionaries;
-    const grid = recommendGrid(event.data.grid, orderedDictionaries, commonDictionary);
+    const grid = recommendGrid(
+      event.data.grid,
+      orderedDictionaries,
+      commonDictionary,
+      event.data.attemptCount,
+    );
     const payload: WorkerResponse = { id: event.data.id, success: true, grid };
     workerScope.postMessage(payload);
   } catch (error) {
