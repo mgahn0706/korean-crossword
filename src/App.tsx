@@ -494,6 +494,17 @@ function resizeGrid(
   );
 }
 
+function parseGridDimension(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? Math.max(1, parsed) : null;
+}
+
 function getSymmetricCells(
   rowIndex: number,
   colIndex: number,
@@ -528,6 +539,8 @@ function getSymmetricCells(
 function App() {
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [cols, setCols] = useState(DEFAULT_COLS);
+  const [rowsInput, setRowsInput] = useState(String(DEFAULT_ROWS));
+  const [colsInput, setColsInput] = useState(String(DEFAULT_COLS));
   const [attemptCount, setAttemptCount] = useState(DEFAULT_ATTEMPT_COUNT);
   const [grid, setGrid] = useState<CrosswordGrid>(() =>
     createGrid(DEFAULT_ROWS, DEFAULT_COLS)
@@ -603,13 +616,37 @@ function App() {
   const handleRowsChange = (value: number) => {
     const nextRows = Math.max(1, value || 1);
     setRows(nextRows);
+    setRowsInput(String(nextRows));
     setGrid((currentGrid) => resizeGrid(currentGrid, nextRows, cols));
   };
 
   const handleColsChange = (value: number) => {
     const nextCols = Math.max(1, value || 1);
     setCols(nextCols);
+    setColsInput(String(nextCols));
     setGrid((currentGrid) => resizeGrid(currentGrid, rows, nextCols));
+  };
+
+  const commitRowsInput = () => {
+    const parsed = parseGridDimension(rowsInput);
+
+    if (parsed == null) {
+      setRowsInput(String(rows));
+      return;
+    }
+
+    handleRowsChange(parsed);
+  };
+
+  const commitColsInput = () => {
+    const parsed = parseGridDimension(colsInput);
+
+    if (parsed == null) {
+      setColsInput(String(cols));
+      return;
+    }
+
+    handleColsChange(parsed);
   };
 
   const handleCellChange = (
@@ -981,10 +1018,9 @@ function App() {
                       type="number"
                       min="1"
                       max="40"
-                      value={rows}
-                      onChange={(event) =>
-                        handleRowsChange(event.target.valueAsNumber)
-                      }
+                      value={rowsInput}
+                      onChange={(event) => setRowsInput(event.target.value)}
+                      onBlur={commitRowsInput}
                     />
                   </label>
 
@@ -994,10 +1030,9 @@ function App() {
                       type="number"
                       min="1"
                       max="40"
-                      value={cols}
-                      onChange={(event) =>
-                        handleColsChange(event.target.valueAsNumber)
-                      }
+                      value={colsInput}
+                      onChange={(event) => setColsInput(event.target.value)}
+                      onBlur={commitColsInput}
                     />
                   </label>
 
