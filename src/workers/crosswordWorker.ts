@@ -31,12 +31,29 @@ type PreparedDictionary = {
   indexes: Map<number, LengthIndex>;
 };
 
+type RecommendationScore = {
+  invalidCount: number;
+  commonCount: number;
+  validAcrossCount: number;
+  validDownCount: number;
+};
+
 const workerScope = self as DedicatedWorkerGlobalScope;
 const PLACEHOLDER_LETTERS = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ"];
 const MAX_CANDIDATES_PER_SLOT = 20;
 const MAX_SEARCH_STEPS = 1200;
+const ATTEMPT_COUNT = 5;
 
 let dictionariesPromise: Promise<PreparedDictionary[]> | null = null;
+
+function shuffleInPlace<T>(items: T[]) {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [items[index], items[randomIndex]] = [items[randomIndex], items[index]];
+  }
+
+  return items;
+}
 
 function normalizeWord(word: string): string {
   const normalized = word.normalize("NFC").trim();
@@ -247,7 +264,12 @@ function extractSlots(grid: CrosswordGrid): Slot[] {
   return slots;
 }
 
-function resolveCandidates(slot: Slot, grid: CrosswordGrid, dictionary: PreparedDictionary): string[] {
+function resolveCandidates(
+  slot: Slot,
+  grid: CrosswordGrid,
+  dictionary: PreparedDictionary,
+  usedWords: Set<string>,
+): string[] {
   const index = getLengthIndex(dictionary, slot.length);
 
   if (index.words.length === 0) {
@@ -277,7 +299,9 @@ function resolveCandidates(slot: Slot, grid: CrosswordGrid, dictionary: Prepared
     }
   }
 
-  return collectBitsetIndexes(bitset, MAX_CANDIDATES_PER_SLOT).map((wordIndex) => index.words[wordIndex]);
+  return collectBitsetIndexes(bitset, MAX_CANDIDATES_PER_SLOT)
+    .map((wordIndex) => index.words[wordIndex])
+    .filter((word) => !usedWords.has(word));
 }
 
 function applyCandidate(slot: Slot, grid: CrosswordGrid, candidate: string) {
@@ -298,7 +322,7 @@ function applyCandidate(slot: Slot, grid: CrosswordGrid, candidate: string) {
 }
 
 function fillRemainingCells(grid: CrosswordGrid): CrosswordGrid {
-  let fillIndex = 0;
+  let fillIndex = Math.floor(Math.random() * PLACEHOLDER_LETTERS.length);
 
   return grid.map((row) =>
     row.map((cell) => {
@@ -313,103 +337,227 @@ function fillRemainingCells(grid: CrosswordGrid): CrosswordGrid {
   );
 }
 
+function buildWordSets(dictionaries: PreparedDictionary[]) {
+  const wordSets = new Map<number, Set<string>>();
+
+  for (const dictionary of dictionaries) {
+    for (const [length, words] of dictionary.buckets) {
+      const existing = wordSets.get(length) ?? new Set<string>();
+
+      for (const word of words) {
+        existing.add(word);
+      }
+
+      wordSets.set(length, existing);
+    }
+  }
+
+  return wordSets;
+}
+
+function scoreGrid(
+  grid: CrosswordGrid,
+  slots: Slot[],
+  wordSets: Map<number, Set<string>>,
+  commonWordSets: Map<number, Set<string>>,
+): RecommendationScore {
+  let invalidCount = 0;
+  let commonCount = 0;
+  let validAcrossCount = 0;
+  let validDownCount = 0;
+
+  for (const slot of slots) {
+    const answer = slot.cells.map(({ row, col }) => grid[row][col]).join("");
+    const valid = wordSets.get(slot.length)?.has(answer) ?? false;
+
+    if (!valid) {
+      invalidCount += 1;
+      continue;
+    }
+
+    if (commonWordSets.get(slot.length)?.has(answer) ?? false) {
+      commonCount += 1;
+    }
+
+    if (slot.direction === "across") {
+      validAcrossCount += 1;
+    } else {
+      validDownCount += 1;
+    }
+  }
+
+  return { invalidCount, commonCount, validAcrossCount, validDownCount };
+}
+
+function isBetterRecommendation(nextScore: RecommendationScore, bestScore: RecommendationScore | null) {
+  if (bestScore == null) {
+    return true;
+  }
+
+  if (nextScore.invalidCount !== bestScore.invalidCount) {
+    return nextScore.invalidCount < bestScore.invalidCount;
+  }
+
+  if (nextScore.commonCount !== bestScore.commonCount) {
+    return nextScore.commonCount > bestScore.commonCount;
+  }
+
+  const nextTotal = nextScore.validAcrossCount + nextScore.validDownCount;
+  const bestTotal = bestScore.validAcrossCount + bestScore.validDownCount;
+
+  if (nextTotal !== bestTotal) {
+    return nextTotal > bestTotal;
+  }
+
+  const nextImbalance = Math.abs(nextScore.validAcrossCount - nextScore.validDownCount);
+  const bestImbalance = Math.abs(bestScore.validAcrossCount - bestScore.validDownCount);
+
+  if (nextImbalance !== bestImbalance) {
+    return nextImbalance < bestImbalance;
+  }
+
+  return Math.random() >= 0.5;
+}
+
 function recommendGrid(
   initialGrid: CrosswordGrid,
   dictionaries: PreparedDictionary[],
+  commonDictionary: PreparedDictionary,
 ): CrosswordGrid {
   const slots = extractSlots(initialGrid);
-  const grid = initialGrid.map((row) => [...row]);
-  let bestGrid = grid.map((row) => [...row]);
-  let bestAcrossCount = 0;
-  let bestDownCount = 0;
-  let searchSteps = 0;
+  const wordSets = buildWordSets(dictionaries);
+  const commonWordSets = buildWordSets([commonDictionary]);
+  let bestRecommendation: { grid: CrosswordGrid; score: RecommendationScore } | null = null;
 
-  const isBetterScore = (acrossCount: number, downCount: number) => {
-    const total = acrossCount + downCount;
-    const bestTotal = bestAcrossCount + bestDownCount;
+  for (let attempt = 0; attempt < ATTEMPT_COUNT; attempt += 1) {
+    const grid = initialGrid.map((row) => [...row]);
+    let bestGrid = grid.map((row) => [...row]);
+    let bestAcrossCount = 0;
+    let bestDownCount = 0;
+    let searchSteps = 0;
+    const usedWords = new Set<string>();
 
-    if (total !== bestTotal) {
-      return total > bestTotal;
-    }
+    const isBetterScore = (acrossCount: number, downCount: number) => {
+      const total = acrossCount + downCount;
+      const bestTotal = bestAcrossCount + bestDownCount;
 
-    const imbalance = Math.abs(acrossCount - downCount);
-    const bestImbalance = Math.abs(bestAcrossCount - bestDownCount);
+      if (total !== bestTotal) {
+        return total > bestTotal;
+      }
 
-    if (imbalance !== bestImbalance) {
-      return imbalance < bestImbalance;
-    }
+      const imbalance = Math.abs(acrossCount - downCount);
+      const bestImbalance = Math.abs(bestAcrossCount - bestDownCount);
 
-    return acrossCount > bestAcrossCount;
-  };
+      if (imbalance !== bestImbalance) {
+        return imbalance < bestImbalance;
+      }
 
-  const search = (remainingSlots: Slot[], acrossCount: number, downCount: number) => {
-    if (searchSteps >= MAX_SEARCH_STEPS) {
-      return;
-    }
+      return Math.random() >= 0.5;
+    };
 
-    searchSteps += 1;
+    const search = (remainingSlots: Slot[], acrossCount: number, downCount: number) => {
+      if (searchSteps >= MAX_SEARCH_STEPS) {
+        return;
+      }
 
-    if (isBetterScore(acrossCount, downCount)) {
-      bestAcrossCount = acrossCount;
-      bestDownCount = downCount;
-      bestGrid = grid.map((row) => [...row]);
-    }
+      searchSteps += 1;
 
-    if (
-      remainingSlots.length === 0 ||
-      acrossCount + downCount + remainingSlots.length <= bestAcrossCount + bestDownCount
-    ) {
-      return;
-    }
+      if (isBetterScore(acrossCount, downCount)) {
+        bestAcrossCount = acrossCount;
+        bestDownCount = downCount;
+        bestGrid = grid.map((row) => [...row]);
+      }
 
-    let targetSlot: Slot | null = null;
-    let targetCandidates: string[] = [];
+      if (
+        remainingSlots.length === 0 ||
+        acrossCount + downCount + remainingSlots.length <= bestAcrossCount + bestDownCount
+      ) {
+        return;
+      }
 
-    for (const slot of remainingSlots) {
-      const candidates = dictionaries.flatMap((dictionary) => resolveCandidates(slot, grid, dictionary));
+      let targetSlot: Slot | null = null;
+      let targetCandidates: string[] = [];
+      const tiedSlots: Array<{ slot: Slot; candidates: string[] }> = [];
+
+      for (const slot of remainingSlots) {
+        const candidates = dictionaries.flatMap((dictionary) =>
+          resolveCandidates(slot, grid, dictionary, usedWords),
+        );
       const uniqueCandidates = Array.from(new Set(candidates));
+      const commonWords = commonWordSets.get(slot.length) ?? new Set<string>();
+      const prioritizedCandidates = [
+        ...shuffleInPlace(uniqueCandidates.filter((candidate) => commonWords.has(candidate))),
+        ...shuffleInPlace(uniqueCandidates.filter((candidate) => !commonWords.has(candidate))),
+      ];
 
-      if (uniqueCandidates.length === 0) {
+      if (prioritizedCandidates.length === 0) {
         continue;
       }
 
-      if (targetSlot == null || uniqueCandidates.length < targetCandidates.length) {
+      if (targetSlot == null || prioritizedCandidates.length < targetCandidates.length) {
         targetSlot = slot;
-        targetCandidates = uniqueCandidates;
+        targetCandidates = prioritizedCandidates;
+        tiedSlots.length = 0;
+        tiedSlots.push({ slot, candidates: prioritizedCandidates });
+        continue;
       }
+
+      if (prioritizedCandidates.length === targetCandidates.length) {
+        tiedSlots.push({ slot, candidates: prioritizedCandidates });
+      }
+      }
+
+      if (targetSlot == null) {
+        return;
+      }
+
+      if (tiedSlots.length > 1) {
+        const picked = tiedSlots[Math.floor(Math.random() * tiedSlots.length)];
+        targetSlot = picked.slot;
+        targetCandidates = picked.candidates;
+      }
+
+      const nextSlots = remainingSlots.filter((slot) => slot.id !== targetSlot.id);
+
+      for (const candidate of targetCandidates) {
+        const rollback = applyCandidate(targetSlot, grid, candidate);
+        usedWords.add(candidate);
+        search(
+          nextSlots,
+          acrossCount + (targetSlot.direction === "across" ? 1 : 0),
+          downCount + (targetSlot.direction === "down" ? 1 : 0),
+        );
+        usedWords.delete(candidate);
+        rollback();
+      }
+
+      search(nextSlots, acrossCount, downCount);
+    };
+
+    search(slots, 0, 0);
+    const finalizedGrid = fillRemainingCells(bestGrid);
+    const score = scoreGrid(finalizedGrid, slots, wordSets, commonWordSets);
+
+    if (isBetterRecommendation(score, bestRecommendation?.score ?? null)) {
+      bestRecommendation = {
+        grid: finalizedGrid,
+        score,
+      };
     }
+  }
 
-    if (targetSlot == null) {
-      return;
-    }
-
-    const nextSlots = remainingSlots.filter((slot) => slot.id !== targetSlot.id);
-
-    for (const candidate of targetCandidates) {
-      const rollback = applyCandidate(targetSlot, grid, candidate);
-      search(
-        nextSlots,
-        acrossCount + (targetSlot.direction === "across" ? 1 : 0),
-        downCount + (targetSlot.direction === "down" ? 1 : 0),
-      );
-      rollback();
-    }
-
-    search(nextSlots, acrossCount, downCount);
-  };
-
-  search(slots, 0, 0);
-  return fillRemainingCells(bestGrid);
+  return bestRecommendation?.grid ?? fillRemainingCells(initialGrid.map((row) => [...row]));
 }
 
 async function loadDictionaries() {
   if (dictionariesPromise == null) {
-    dictionariesPromise = import("../fixtures/koreanNounLists").then(
-      ({ COMMON_NOUNS, KOREAN_NOUNS }) => [
+    dictionariesPromise = Promise.all([
+      import("../fixtures/koreanNounLists"),
+      import("../fixtures/additionalWordLists"),
+    ]).then(([{ COMMON_NOUNS, KOREAN_NOUNS }, { ADDITIONAL_WORD_LIST }]) => [
         prepareDictionary(COMMON_NOUNS),
-        prepareDictionary(KOREAN_NOUNS),
-      ],
-    );
+        prepareDictionary([...KOREAN_NOUNS, ...ADDITIONAL_WORD_LIST]),
+      ]);
   }
 
   return dictionariesPromise;
@@ -418,11 +566,12 @@ async function loadDictionaries() {
 workerScope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   try {
     const dictionaries = await loadDictionaries();
+    const commonDictionary = dictionaries[0];
     const orderedDictionaries =
       event.data.customWords.length > 0
         ? [prepareDictionary(event.data.customWords), ...dictionaries]
         : dictionaries;
-    const grid = recommendGrid(event.data.grid, orderedDictionaries);
+    const grid = recommendGrid(event.data.grid, orderedDictionaries, commonDictionary);
     const payload: WorkerResponse = { id: event.data.id, success: true, grid };
     workerScope.postMessage(payload);
   } catch (error) {

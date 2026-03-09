@@ -4,8 +4,8 @@ import { Grid } from "./components/Grid";
 import type { CellValue, CrosswordGrid } from "./lib/crossword/types";
 import "./App.css";
 
-const DEFAULT_ROWS = 10;
-const DEFAULT_COLS = 10;
+const DEFAULT_ROWS = 5;
+const DEFAULT_COLS = 5;
 type SymmetryMode = "rotational" | "horizontal" | "vertical" | "none";
 
 type WorkerResponse =
@@ -21,6 +21,8 @@ type FeatureMode = "grid" | "lookup" | "clue";
 type ClueDirection = "Across" | "Down";
 type ClueEntry = {
   id: string;
+  startRow: number;
+  startCol: number;
   number: number;
   direction: ClueDirection;
   answer: string;
@@ -36,6 +38,13 @@ const FEATURE_MODE_LABELS: Record<FeatureMode, string> = {
   grid: "Grid overview",
   lookup: "Word lookup",
   clue: "Clue author",
+};
+const CLUE_STATUS_LABELS: Record<ClueValidation, string> = {
+  incomplete: "incomplete",
+  loading: "loading",
+  common: "common",
+  noun: "noun",
+  missing: "비표준어어",
 };
 
 function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
@@ -68,12 +77,12 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
         }
 
         entries.push({
-          id: `${clueNumber}-across`,
+          id: `across-${rowIndex}-${colIndex}`,
+          startRow: rowIndex,
+          startCol: colIndex,
           number: clueNumber,
           direction: "Across",
-          answer: assembleAnswer(
-            grid[rowIndex].slice(colIndex, endCol),
-          ),
+          answer: assembleAnswer(grid[rowIndex].slice(colIndex, endCol)),
           length: endCol - colIndex,
         });
       }
@@ -88,7 +97,9 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
         }
 
         entries.push({
-          id: `${clueNumber}-down`,
+          id: `down-${rowIndex}-${colIndex}`,
+          startRow: rowIndex,
+          startCol: colIndex,
           number: clueNumber,
           direction: "Down",
           answer: assembleAnswer(answer),
@@ -103,6 +114,64 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
   }
 
   return entries;
+}
+
+function getVisibleCellNumbers(
+  grid: CrosswordGrid,
+  clueEntries: ClueEntry[],
+  hiddenClueIds: Set<string>
+) {
+  const numbers = new Map<string, number>();
+  let nextNumber = 1;
+  const rowCount = grid.length;
+  const colCount = grid[0]?.length ?? 0;
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    for (let colIndex = 0; colIndex < colCount; colIndex += 1) {
+      if (grid[rowIndex][colIndex] === "#") {
+        continue;
+      }
+
+      const key = `${rowIndex}:${colIndex}`;
+      const hasVisibleClue = clueEntries.some(
+        (entry) =>
+          entry.startRow === rowIndex &&
+          entry.startCol === colIndex &&
+          !hiddenClueIds.has(entry.id)
+      );
+
+      if (hasVisibleClue) {
+        numbers.set(key, nextNumber);
+        nextNumber += 1;
+      }
+    }
+  }
+
+  return numbers;
+}
+
+function getHiddenBars(hiddenEntries: ClueEntry[]) {
+  const topBars = new Set<string>();
+  const bottomBars = new Set<string>();
+  const leftBars = new Set<string>();
+  const rightBars = new Set<string>();
+
+  for (const entry of hiddenEntries) {
+    if (entry.direction === "Across") {
+      const firstKey = `${entry.startRow}:${entry.startCol}`;
+      const lastKey = `${entry.startRow}:${entry.startCol + entry.length - 1}`;
+      leftBars.add(firstKey);
+      rightBars.add(lastKey);
+      continue;
+    }
+
+    const firstKey = `${entry.startRow}:${entry.startCol}`;
+    const lastKey = `${entry.startRow + entry.length - 1}:${entry.startCol}`;
+    topBars.add(firstKey);
+    bottomBars.add(lastKey);
+  }
+
+  return { topBars, bottomBars, leftBars, rightBars };
 }
 
 function assembleAnswer(cells: Array<CellValue>): string {
@@ -202,7 +271,10 @@ function App() {
   const [customWordText, setCustomWordText] = useState("");
   const [lookupQuery, setLookupQuery] = useState("");
   const [clueTexts, setClueTexts] = useState<Record<string, string>>({});
-  const [dictionarySets, setDictionarySets] = useState<DictionarySets | null>(null);
+  const [hiddenClueIds, setHiddenClueIds] = useState<Set<string>>(new Set());
+  const [dictionarySets, setDictionarySets] = useState<DictionarySets | null>(
+    null
+  );
   const [isSolving, setIsSolving] = useState(false);
   const [status, setStatus] = useState("Ready to recommend a fill.");
   const workerRef = useRef<Worker | null>(null);
@@ -222,14 +294,19 @@ function App() {
 
     let isCancelled = false;
 
-    void import("./fixtures/koreanNounLists").then(({ COMMON_NOUNS, KOREAN_NOUNS }) => {
-      if (!isCancelled) {
-        setDictionarySets({
-          common: COMMON_NOUNS,
-          all: KOREAN_NOUNS,
-        });
+    void Promise.all([
+      import("./fixtures/koreanNounLists"),
+      import("./fixtures/additionalWordLists"),
+    ]).then(
+      ([{ COMMON_NOUNS, KOREAN_NOUNS }, { ADDITIONAL_WORD_LIST }]) => {
+        if (!isCancelled) {
+          setDictionarySets({
+            common: COMMON_NOUNS,
+            all: new Set([...KOREAN_NOUNS, ...ADDITIONAL_WORD_LIST]),
+          });
+        }
       }
-    });
+    );
 
     return () => {
       isCancelled = true;
@@ -289,6 +366,18 @@ function App() {
     });
   };
 
+  const handleClearGrid = () => {
+    setGrid((currentGrid) =>
+      currentGrid.map((row) => row.map((cell) => (cell === "#" ? "#" : "")))
+    );
+    setStatus("Letters cleared.");
+  };
+
+  const handleClearAll = () => {
+    setGrid(createGrid(rows, cols));
+    setStatus("Grid and black cells cleared.");
+  };
+
   const handleRecommendFill = async () => {
     const worker = getWorker();
     const requestId = requestIdRef.current + 1;
@@ -300,7 +389,7 @@ function App() {
 
     setIsSolving(true);
     setStatus(
-      "Searching for a grid that balances valid across and down words, then filling any leftover cells neutrally."
+      "Searching for a grid with the fewest invalid words first, then favoring common nouns and balanced across/down fills."
     );
 
     const result = await new Promise<WorkerResponse>((resolve, reject) => {
@@ -350,8 +439,17 @@ function App() {
           .filter((word) => word.includes(lookupQuery.trim()))
           .slice(0, 24);
   const clueEntries = getClueEntries(grid);
-  const acrossClues = clueEntries.filter((entry) => entry.direction === "Across");
+  const acrossClues = clueEntries.filter(
+    (entry) => entry.direction === "Across"
+  );
   const downClues = clueEntries.filter((entry) => entry.direction === "Down");
+  const duplicateAnswerCounts = clueEntries.reduce((counts, entry) => {
+    if (!entry.answer.includes("·")) {
+      counts.set(entry.answer, (counts.get(entry.answer) ?? 0) + 1);
+    }
+
+    return counts;
+  }, new Map<string, number>());
   const getValidation = (answer: string): ClueValidation => {
     if (answer.includes("·")) {
       return "incomplete";
@@ -371,6 +469,13 @@ function App() {
 
     return "missing";
   };
+  const isDuplicateAnswer = (answer: string) =>
+    (duplicateAnswerCounts.get(answer) ?? 0) > 1;
+  const cellNumbers = getVisibleCellNumbers(grid, clueEntries, hiddenClueIds);
+  const hiddenEntries = clueEntries.filter((entry) =>
+    hiddenClueIds.has(entry.id)
+  );
+  const hiddenBars = getHiddenBars(hiddenEntries);
 
   return (
     <main className="builder-shell">
@@ -401,7 +506,15 @@ function App() {
 
       <div className="workspace-shell">
         <section className="grid-panel">
-          <Grid grid={grid} onCellChange={handleCellChange} />
+          <Grid
+            grid={grid}
+            onCellChange={handleCellChange}
+            cellNumbers={cellNumbers}
+            topBarCells={hiddenBars.topBars}
+            bottomBarCells={hiddenBars.bottomBars}
+            leftBarCells={hiddenBars.leftBars}
+            rightBarCells={hiddenBars.rightBars}
+          />
         </section>
 
         <aside className="builder-panel">
@@ -469,8 +582,26 @@ function App() {
                 </div>
 
                 <div className="actions">
+                  <div className="action-row">
+                    <button
+                      className="action-button action-button-secondary"
+                      type="button"
+                      onClick={handleClearGrid}
+                      disabled={isSolving}
+                    >
+                      Clear Grid
+                    </button>
+                    <button
+                      className="action-button action-button-secondary"
+                      type="button"
+                      onClick={handleClearAll}
+                      disabled={isSolving}
+                    >
+                      Clear All
+                    </button>
+                  </div>
                   <button
-                    className="action-button"
+                    className="action-button action-button-primary"
                     type="button"
                     onClick={() => void handleRecommendFill()}
                     disabled={isSolving}
@@ -543,18 +674,6 @@ function App() {
             <div className="config-stack">
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Clue Drafting</p>
-                  <h3>Manage clues</h3>
-                </div>
-
-                <p className="helper-text">
-                  Each entry is generated from the numbered grid. Write a clue for every Across and
-                  Down answer here.
-                </p>
-              </section>
-
-              <section className="config-card">
-                <div className="section-heading">
                   <p className="section-eyebrow">Across</p>
                   <h3>{acrossClues.length} entries</h3>
                 </div>
@@ -568,9 +687,35 @@ function App() {
                           <span className="clue-answer">
                             {entry.answer} ({entry.length})
                           </span>
-                          <span className={`clue-status clue-status-${getValidation(entry.answer)}`}>
-                            {getValidation(entry.answer)}
+                          {isDuplicateAnswer(entry.answer) ? (
+                            <span className="clue-warning">duplicate</span>
+                          ) : null}
+                          <span
+                            className={`clue-status clue-status-${getValidation(
+                              entry.answer
+                            )}`}
+                          >
+                            {CLUE_STATUS_LABELS[getValidation(entry.answer)]}
                           </span>
+                          {getValidation(entry.answer) === "missing" ? (
+                            <button
+                              type="button"
+                              className="clue-toggle"
+                              onClick={() =>
+                                setHiddenClueIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(entry.id)) {
+                                    next.delete(entry.id);
+                                  } else {
+                                    next.add(entry.id);
+                                  }
+                                  return next;
+                                })
+                              }
+                            >
+                              {hiddenClueIds.has(entry.id) ? "Restore" : "Hide"}
+                            </button>
+                          ) : null}
                         </div>
                         <input
                           type="text"
@@ -606,9 +751,35 @@ function App() {
                           <span className="clue-answer">
                             {entry.answer} ({entry.length})
                           </span>
-                          <span className={`clue-status clue-status-${getValidation(entry.answer)}`}>
-                            {getValidation(entry.answer)}
+                          {isDuplicateAnswer(entry.answer) ? (
+                            <span className="clue-warning">duplicate</span>
+                          ) : null}
+                          <span
+                            className={`clue-status clue-status-${getValidation(
+                              entry.answer
+                            )}`}
+                          >
+                            {CLUE_STATUS_LABELS[getValidation(entry.answer)]}
                           </span>
+                          {getValidation(entry.answer) === "missing" ? (
+                            <button
+                              type="button"
+                              className="clue-toggle"
+                              onClick={() =>
+                                setHiddenClueIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(entry.id)) {
+                                    next.delete(entry.id);
+                                  } else {
+                                    next.add(entry.id);
+                                  }
+                                  return next;
+                                })
+                              }
+                            >
+                              {hiddenClueIds.has(entry.id) ? "Restore" : "Hide"}
+                            </button>
+                          ) : null}
                         </div>
                         <input
                           type="text"
