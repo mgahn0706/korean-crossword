@@ -1,3 +1,4 @@
+import { disassemble } from "es-hangul";
 import { useRef, useState } from "react";
 import type { CellValue, CrosswordGrid } from "../lib/crossword/types";
 
@@ -25,6 +26,27 @@ function normalizeCellValue(rawValue: string): CellValue {
   }
 
   return nextChar.toUpperCase();
+}
+
+function toCellSequence(rawValue: string): CellValue[] {
+  const compactValue = rawValue.replace(/\s+/g, "");
+
+  if (compactValue === "") {
+    return [""];
+  }
+
+  if (Array.from(compactValue).at(-1) === ".") {
+    return ["#"];
+  }
+
+  const normalized = compactValue.normalize("NFC");
+  const jamo = Array.from(disassemble(normalized)).filter(Boolean);
+
+  if (jamo.length > 0) {
+    return jamo.map((char) => normalizeCellValue(char));
+  }
+
+  return [normalizeCellValue(compactValue)];
 }
 
 function getActiveWordCells(
@@ -91,6 +113,7 @@ export function Grid({
   const columnCount = grid[0]?.length ?? 0;
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const pointerDownCellKeyRef = useRef<string | null>(null);
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [activeDirection, setActiveDirection] = useState<"across" | "down">("across");
   const [activeCellKey, setActiveCellKey] = useState<string | null>(null);
   const activeWordCells = getActiveWordCells(grid, activeCellKey, activeDirection);
@@ -153,15 +176,61 @@ export function Grid({
     rawValue: string,
     shouldAdvance: boolean,
   ) => {
+    const cellKey = `${rowIndex}:${colIndex}`;
+
     if (grid[rowIndex]?.[colIndex] === "#" && rawValue === "") {
+      setDraftValues((current) => {
+        const next = { ...current };
+        delete next[cellKey];
+        return next;
+      });
       return;
     }
 
-    const nextValue = normalizeCellValue(rawValue);
-    onCellChange(rowIndex, colIndex, nextValue);
+    const nextValues = toCellSequence(rawValue);
+    const targetCells = [{ row: rowIndex, col: colIndex }];
 
-    if (shouldAdvance && nextValue !== "" && nextValue !== "#") {
-      focusNextCell(rowIndex, colIndex);
+    while (targetCells.length < nextValues.length) {
+      const previous = targetCells[targetCells.length - 1];
+      const neighbor = getDirectionalNeighbor(previous.row, previous.col, 1);
+
+      if (neighbor == null) {
+        break;
+      }
+
+      targetCells.push(neighbor);
+    }
+
+    setDraftValues((current) => {
+      const next = { ...current };
+      for (const cell of targetCells) {
+        delete next[`${cell.row}:${cell.col}`];
+      }
+      return next;
+    });
+
+    for (let index = 0; index < targetCells.length; index += 1) {
+      const targetCell = targetCells[index];
+      const nextValue = nextValues[index];
+
+      if (nextValue == null) {
+        break;
+      }
+
+      onCellChange(targetCell.row, targetCell.col, nextValue);
+    }
+
+    const lastValue = nextValues[Math.min(nextValues.length, targetCells.length) - 1];
+    const lastCell = targetCells[Math.min(targetCells.length, nextValues.length) - 1];
+
+    if (
+      shouldAdvance &&
+      lastCell != null &&
+      lastValue != null &&
+      lastValue !== "" &&
+      lastValue !== "#"
+    ) {
+      focusNextCell(lastCell.row, lastCell.col);
     }
   };
 
@@ -179,6 +248,7 @@ export function Grid({
             const inputIndex = rowIndex * columnCount + colIndex;
             const isActiveCell = activeCellKey === cellKey;
             const isActiveWordCell = activeWordCells.has(cellKey);
+            const displayValue = isBlack ? "" : draftValues[cellKey] ?? cell;
 
             return (
               <div
@@ -203,7 +273,7 @@ export function Grid({
                   autoComplete="off"
                   spellCheck={false}
                   maxLength={2}
-                  value={isBlack ? "" : cell}
+                  value={displayValue}
                   onMouseDown={() => {
                     pointerDownCellKeyRef.current = activeCellKey;
                   }}
@@ -244,11 +314,27 @@ export function Grid({
                     }
                   }}
                   onChange={(event) => {
+                    const nextRawValue = event.target.value;
+                    const nextValues = toCellSequence(nextRawValue);
+
+                    setDraftValues((current) => ({
+                      ...current,
+                      [cellKey]: nextRawValue,
+                    }));
+
                     if ((event.nativeEvent as InputEvent).isComposing) {
+                      if (
+                        nextValues.length === 1 &&
+                        nextValues[0] !== "" &&
+                        nextValues[0] !== "#"
+                      ) {
+                        commitCellValue(rowIndex, colIndex, nextRawValue, true);
+                      }
+
                       return;
                     }
 
-                    commitCellValue(rowIndex, colIndex, event.target.value, true);
+                    commitCellValue(rowIndex, colIndex, nextRawValue, true);
                   }}
                   onCompositionEnd={(event) => {
                     commitCellValue(rowIndex, colIndex, event.currentTarget.value, true);
