@@ -1,3 +1,4 @@
+import { assemble, canBeJungseong } from "es-hangul";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { Grid } from "./components/Grid";
 import type { CellValue, CrosswordGrid } from "./lib/crossword/types";
@@ -25,6 +26,11 @@ type ClueEntry = {
   answer: string;
   length: number;
 };
+type DictionarySets = {
+  common: Set<string>;
+  all: Set<string>;
+};
+type ClueValidation = "incomplete" | "loading" | "common" | "noun" | "missing";
 
 const FEATURE_MODE_LABELS: Record<FeatureMode, string> = {
   grid: "Grid overview",
@@ -65,10 +71,9 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
           id: `${clueNumber}-across`,
           number: clueNumber,
           direction: "Across",
-          answer: grid[rowIndex]
-            .slice(colIndex, endCol)
-            .map((cell) => (cell === "" ? "·" : cell))
-            .join(""),
+          answer: assembleAnswer(
+            grid[rowIndex].slice(colIndex, endCol),
+          ),
           length: endCol - colIndex,
         });
       }
@@ -78,7 +83,7 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
         const answer: string[] = [];
 
         while (endRow < rowCount && grid[endRow][colIndex] !== "#") {
-          answer.push(grid[endRow][colIndex] === "" ? "·" : grid[endRow][colIndex]);
+          answer.push(grid[endRow][colIndex]);
           endRow += 1;
         }
 
@@ -86,7 +91,7 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
           id: `${clueNumber}-down`,
           number: clueNumber,
           direction: "Down",
-          answer: answer.join(""),
+          answer: assembleAnswer(answer),
           length: endRow - rowIndex,
         });
       }
@@ -98,6 +103,42 @@ function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
   }
 
   return entries;
+}
+
+function assembleAnswer(cells: Array<CellValue>): string {
+  const parts: string[] = [];
+  let buffer: string[] = [];
+
+  const flushBuffer = () => {
+    if (buffer.length === 0) {
+      return;
+    }
+
+    const fragments = canBeJungseong(buffer[0]) ? ["ㅇ", ...buffer] : buffer;
+    try {
+      parts.push(assemble(fragments));
+    } catch {
+      parts.push(buffer.join(""));
+    }
+    buffer = [];
+  };
+
+  for (const cell of cells) {
+    if (cell === "" || cell === "#") {
+      flushBuffer();
+
+      if (cell === "") {
+        parts.push("·");
+      }
+      continue;
+    }
+
+    buffer.push(cell);
+  }
+
+  flushBuffer();
+
+  return parts.join("");
 }
 
 function createGrid(rows: number, cols: number): CrosswordGrid {
@@ -161,6 +202,7 @@ function App() {
   const [customWordText, setCustomWordText] = useState("");
   const [lookupQuery, setLookupQuery] = useState("");
   const [clueTexts, setClueTexts] = useState<Record<string, string>>({});
+  const [dictionarySets, setDictionarySets] = useState<DictionarySets | null>(null);
   const [isSolving, setIsSolving] = useState(false);
   const [status, setStatus] = useState("Ready to recommend a fill.");
   const workerRef = useRef<Worker | null>(null);
@@ -172,6 +214,27 @@ function App() {
       workerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeMode !== "clue" || dictionarySets != null) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    void import("./fixtures/koreanNounLists").then(({ COMMON_NOUNS, KOREAN_NOUNS }) => {
+      if (!isCancelled) {
+        setDictionarySets({
+          common: COMMON_NOUNS,
+          all: KOREAN_NOUNS,
+        });
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeMode, dictionarySets]);
 
   const getWorker = () => {
     if (workerRef.current == null) {
@@ -237,7 +300,7 @@ function App() {
 
     setIsSolving(true);
     setStatus(
-      "Searching your custom list first, then common nouns, then the full Korean noun list."
+      "Searching for a grid that balances valid across and down words, then filling any leftover cells neutrally."
     );
 
     const result = await new Promise<WorkerResponse>((resolve, reject) => {
@@ -269,7 +332,7 @@ function App() {
       startTransition(() => {
         setGrid(result.grid);
       });
-      setStatus("Recommended fill applied.");
+      setStatus("Best-effort grid recommendation applied.");
       return;
     }
 
@@ -289,6 +352,25 @@ function App() {
   const clueEntries = getClueEntries(grid);
   const acrossClues = clueEntries.filter((entry) => entry.direction === "Across");
   const downClues = clueEntries.filter((entry) => entry.direction === "Down");
+  const getValidation = (answer: string): ClueValidation => {
+    if (answer.includes("·")) {
+      return "incomplete";
+    }
+
+    if (dictionarySets == null) {
+      return "loading";
+    }
+
+    if (dictionarySets.common.has(answer)) {
+      return "common";
+    }
+
+    if (dictionarySets.all.has(answer)) {
+      return "noun";
+    }
+
+    return "missing";
+  };
 
   return (
     <main className="builder-shell">
@@ -382,8 +464,8 @@ function App() {
 
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">Solver</p>
-                  <h3>Recommendation</h3>
+                  <p className="section-eyebrow">Grid Fill</p>
+                  <h3>Best-effort recommendation</h3>
                 </div>
 
                 <div className="actions">
@@ -393,7 +475,7 @@ function App() {
                     onClick={() => void handleRecommendFill()}
                     disabled={isSolving}
                   >
-                    {isSolving ? "Finding Fill..." : "Recommend Fill"}
+                    {isSolving ? "Filling Grid..." : "Recommend Grid"}
                   </button>
                   <p className="status-text">{status}</p>
                 </div>
@@ -483,8 +565,11 @@ function App() {
                       <label key={entry.id} className="clue-item">
                         <div className="clue-meta">
                           <strong>{entry.number}A</strong>
-                          <span>
+                          <span className="clue-answer">
                             {entry.answer} ({entry.length})
+                          </span>
+                          <span className={`clue-status clue-status-${getValidation(entry.answer)}`}>
+                            {getValidation(entry.answer)}
                           </span>
                         </div>
                         <input
@@ -518,8 +603,11 @@ function App() {
                       <label key={entry.id} className="clue-item">
                         <div className="clue-meta">
                           <strong>{entry.number}D</strong>
-                          <span>
+                          <span className="clue-answer">
                             {entry.answer} ({entry.length})
+                          </span>
+                          <span className={`clue-status clue-status-${getValidation(entry.answer)}`}>
+                            {getValidation(entry.answer)}
                           </span>
                         </div>
                         <input
