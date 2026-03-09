@@ -30,6 +30,10 @@ type ClueEntry = {
   answer: string;
   length: number;
 };
+type ExportClue = {
+  label: string;
+  text: string;
+};
 type DictionarySets = {
   common: Set<string>;
   all: Set<string>;
@@ -44,10 +48,259 @@ const FEATURE_MODE_LABELS: Record<FeatureMode, string> = {
 const CLUE_STATUS_LABELS: Record<ClueValidation, string> = {
   incomplete: "미완성",
   loading: "로딩 중",
-  common: "흔한 명사",
-  noun: "표준 명사",
-  missing: "비표준어",
+  common: "쉬운 단어",
+  noun: "사전 등록 단어",
+  missing: "사전 미등록 단어",
 };
+const EXPORT_TITLE = "한국어 크로스워드";
+
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2.5 2.5h11v11h-11zM2.5 6h11M2.5 10h11M6 2.5v11M10 2.5v11" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="7" cy="7" r="4.25" />
+      <path d="M10.5 10.5 13.5 13.5" />
+    </svg>
+  );
+}
+
+function ClueIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="m3 11.75 1.9-.4 6.35-6.35-1.5-1.5L3.4 9.85zm7.1-8.6 1.5 1.5 1-1a1.06 1.06 0 0 0 0-1.5 1.06 1.06 0 0 0-1.5 0z" />
+      <path d="M3 13.25h10" />
+    </svg>
+  );
+}
+
+function ExportPngIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
+      <circle cx="6" cy="6.25" r="1.1" />
+      <path d="m4 11 2.3-2.3 1.8 1.8 2.2-2.2 1.7 1.7" />
+    </svg>
+  );
+}
+
+function ExportPdfIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4 2.5h5l3 3v8H4z" />
+      <path d="M9 2.5v3h3" />
+      <path d="M5.25 9.25h5.5M5.25 11.5h5.5" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 2.5v7" />
+      <path d="m5.25 7.75 2.75 2.75 2.75-2.75" />
+      <path d="M3 12.5h10" />
+    </svg>
+  );
+}
+
+function escapeXml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function wrapExportText(text: string, limit: number) {
+  const trimmed = text.trim();
+
+  if (trimmed === "") {
+    return ["미작성"];
+  }
+
+  const words = trimmed.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current === "" ? word : `${current} ${word}`;
+
+    if (next.length <= limit) {
+      current = next;
+      continue;
+    }
+
+    if (current !== "") {
+      lines.push(current);
+      current = word;
+      continue;
+    }
+
+    let remaining = word;
+
+    while (remaining.length > limit) {
+      lines.push(remaining.slice(0, limit));
+      remaining = remaining.slice(limit);
+    }
+
+    current = remaining;
+  }
+
+  if (current !== "") {
+    lines.push(current);
+  }
+
+  return lines.length > 0 ? lines : ["미작성"];
+}
+
+function buildExportSvg(
+  grid: CrosswordGrid,
+  cellNumbers: Map<string, number>,
+  topBarCells: Set<string>,
+  bottomBarCells: Set<string>,
+  leftBarCells: Set<string>,
+  rightBarCells: Set<string>,
+  acrossClues: ExportClue[],
+  downClues: ExportClue[]
+) {
+  const cellSize = 36;
+  const margin = 40;
+  const gridWidth = (grid[0]?.length ?? 0) * cellSize;
+  const gridHeight = grid.length * cellSize;
+  const clueX = margin + gridWidth + 48;
+  const clueWidth = 360;
+  const totalWidth = clueX + clueWidth + margin;
+  const titleY = margin;
+  const gridY = titleY + 28;
+
+  let acrossY = gridY;
+  const acrossMarkup: string[] = [
+    `<text x="${clueX}" y="${acrossY}" font-size="16" font-weight="700" fill="#111827">가로</text>`,
+  ];
+  acrossY += 24;
+
+  for (const clue of acrossClues) {
+    const lines = wrapExportText(`${clue.label}. ${clue.text}`, 26);
+    lines.forEach((line, index) => {
+      acrossMarkup.push(
+        `<text x="${clueX}" y="${acrossY}" font-size="13" fill="#1f2937">${escapeXml(
+          line
+        )}</text>`
+      );
+      acrossY += index === lines.length - 1 ? 22 : 18;
+    });
+  }
+
+  acrossY += 14;
+
+  const downMarkup: string[] = [
+    `<text x="${clueX}" y="${acrossY}" font-size="16" font-weight="700" fill="#111827">세로</text>`,
+  ];
+  acrossY += 24;
+
+  for (const clue of downClues) {
+    const lines = wrapExportText(`${clue.label}. ${clue.text}`, 26);
+    lines.forEach((line, index) => {
+      downMarkup.push(
+        `<text x="${clueX}" y="${acrossY}" font-size="13" fill="#1f2937">${escapeXml(
+          line
+        )}</text>`
+      );
+      acrossY += index === lines.length - 1 ? 22 : 18;
+    });
+  }
+
+  const totalHeight = Math.max(gridY + gridHeight + margin, acrossY + margin);
+  const cellsMarkup: string[] = [];
+
+  for (let rowIndex = 0; rowIndex < grid.length; rowIndex += 1) {
+    for (let colIndex = 0; colIndex < (grid[0]?.length ?? 0); colIndex += 1) {
+      const value = grid[rowIndex][colIndex];
+      const x = margin + colIndex * cellSize;
+      const y = gridY + rowIndex * cellSize;
+      const cellKey = `${rowIndex}:${colIndex}`;
+      const isBlack = value === "#";
+
+      cellsMarkup.push(
+        `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${
+          isBlack ? "#111111" : "#ffffff"
+        }" stroke="#111111" stroke-width="1.25" />`
+      );
+
+      if (!isBlack) {
+        const number = cellNumbers.get(cellKey);
+
+        if (number != null) {
+          cellsMarkup.push(
+            `<text x="${x + 4}" y="${
+              y + 9
+            }" font-size="8" font-weight="700" fill="#374151">${number}</text>`
+          );
+        }
+
+        if (value !== "") {
+          cellsMarkup.push(
+            `<text x="${x + cellSize / 2}" y="${
+              y + cellSize / 2 + 7
+            }" text-anchor="middle" font-size="20" font-weight="600" fill="#111827">${escapeXml(
+              value
+            )}</text>`
+          );
+        }
+      }
+
+      if (topBarCells.has(cellKey)) {
+        cellsMarkup.push(
+          `<line x1="${x + 1.5}" y1="${y + 3}" x2="${x + cellSize - 1.5}" y2="${
+            y + 3
+          }" stroke="#b91c1c" stroke-width="3" />`
+        );
+      }
+
+      if (bottomBarCells.has(cellKey)) {
+        cellsMarkup.push(
+          `<line x1="${x + 1.5}" y1="${y + cellSize - 3}" x2="${
+            x + cellSize - 1.5
+          }" y2="${y + cellSize - 3}" stroke="#b91c1c" stroke-width="3" />`
+        );
+      }
+
+      if (leftBarCells.has(cellKey)) {
+        cellsMarkup.push(
+          `<line x1="${x + 3}" y1="${y + 1.5}" x2="${x + 3}" y2="${
+            y + cellSize - 1.5
+          }" stroke="#b91c1c" stroke-width="3" />`
+        );
+      }
+
+      if (rightBarCells.has(cellKey)) {
+        cellsMarkup.push(
+          `<line x1="${x + cellSize - 3}" y1="${y + 1.5}" x2="${
+            x + cellSize - 3
+          }" y2="${y + cellSize - 1.5}" stroke="#b91c1c" stroke-width="3" />`
+        );
+      }
+    }
+  }
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
+      <rect width="100%" height="100%" fill="#f8f8f6" />
+      <text x="${margin}" y="${titleY}" font-size="22" font-weight="700" fill="#111827">${EXPORT_TITLE}</text>
+      ${cellsMarkup.join("")}
+      ${acrossMarkup.join("")}
+      ${downMarkup.join("")}
+    </svg>
+  `.trim();
+}
 
 function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
   const entries: ClueEntry[] = [];
@@ -287,6 +540,7 @@ function App() {
   const [isSolving, setIsSolving] = useState(false);
   const [status, setStatus] = useState("격자 추천을 시작할 수 있습니다.");
   const workerRef = useRef<Worker | null>(null);
+  const exportDialogRef = useRef<HTMLDialogElement | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -449,16 +703,12 @@ function App() {
     setStatus(result.reason);
   };
 
-  const customWords = customWordText
-    .split(/\r?\n|,/)
-    .map((word) => word.trim())
-    .filter(Boolean);
-  const filteredCustomWords =
+  const lookupUrl =
     lookupQuery.trim() === ""
-      ? customWords.slice(0, 24)
-      : customWords
-          .filter((word) => word.includes(lookupQuery.trim()))
-          .slice(0, 24);
+      ? "https://ko.dict.naver.com/#/search"
+      : `https://ko.dict.naver.com/#/search?query=${encodeURIComponent(
+          lookupQuery.trim()
+        )}`;
   const clueEntries = getClueEntries(grid);
   const acrossClues = clueEntries.filter(
     (entry) => entry.direction === "Across"
@@ -518,32 +768,170 @@ function App() {
     hiddenClueIds.has(entry.id)
   );
   const hiddenBars = getHiddenBars(hiddenEntries);
+  const visibleAcrossClues = acrossClues.filter(
+    (entry) => !hiddenClueIds.has(entry.id)
+  );
+  const visibleDownClues = downClues.filter(
+    (entry) => !hiddenClueIds.has(entry.id)
+  );
+  const exportAcrossClues = visibleAcrossClues.map((entry) => ({
+    label: `${entry.number}A`,
+    text: clueTexts[entry.id]?.trim() || `${entry.answer} (${entry.length})`,
+  }));
+  const exportDownClues = visibleDownClues.map((entry) => ({
+    label: `${entry.number}D`,
+    text: clueTexts[entry.id]?.trim() || `${entry.answer} (${entry.length})`,
+  }));
+
+  const getExportSvg = () =>
+    buildExportSvg(
+      grid,
+      cellNumbers,
+      hiddenBars.topBars,
+      hiddenBars.bottomBars,
+      hiddenBars.leftBars,
+      hiddenBars.rightBars,
+      exportAcrossClues,
+      exportDownClues
+    );
+
+  const handleExportPng = async () => {
+    const svgMarkup = getExportSvg();
+    const svgBlob = new Blob([svgMarkup], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const image = new Image();
+      image.decoding = "async";
+
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("PNG 내보내기에 실패했습니다."));
+        image.src = svgUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d");
+
+      if (context == null) {
+        throw new Error("PNG 캔버스를 만들 수 없습니다.");
+      }
+
+      context.fillStyle = "#f8f8f6";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+
+      const pngUrl = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = pngUrl;
+      link.download = "korean-crossword.png";
+      link.click();
+      setStatus("PNG 파일을 내보냈습니다.");
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "PNG 내보내기에 실패했습니다."
+      );
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  };
+
+  const handleExportPdf = () => {
+    const exportWindow = window.open("", "_blank", "width=1100,height=850");
+
+    if (exportWindow == null) {
+      setStatus("PDF 내보내기 창을 열 수 없습니다.");
+      return;
+    }
+
+    exportWindow.document.write(`<!doctype html>
+      <html lang="ko">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${EXPORT_TITLE}</title>
+          <style>
+            body { margin: 0; padding: 32px; font-family: Apple SD Gothic Neo, Malgun Gothic, sans-serif; background: #f8f8f6; color: #111827; }
+            .print-shell { display: grid; gap: 24px; }
+            .print-card { background: #ffffff; border: 1px solid #e7e5e4; border-radius: 16px; padding: 24px; }
+            .print-grid svg { display: block; width: 100%; height: auto; }
+            @media print { body { padding: 0; background: #ffffff; } .print-card { border: 0; padding: 18px 24px; } }
+          </style>
+        </head>
+        <body>
+          <div class="print-shell">
+            <section class="print-card print-grid">${getExportSvg()}</section>
+          </div>
+          <script>
+            window.addEventListener("load", () => {
+              window.setTimeout(() => {
+                window.focus();
+                window.print();
+              }, 150);
+            });
+          </script>
+        </body>
+      </html>`);
+    exportWindow.document.close();
+    setStatus("PDF로 저장할 수 있는 인쇄 창을 열었습니다.");
+  };
+
+  const openExportDialog = () => {
+    exportDialogRef.current?.showModal();
+  };
+
+  const closeExportDialog = () => {
+    exportDialogRef.current?.close();
+  };
 
   return (
     <main className="builder-shell">
       <header className="app-header">
         <div className="builder-copy">
           <p className="eyebrow">Korean Crossword Builder</p>
-          <h1>한국어 크로스워드 제작기</h1>
+          <h1>한국어 크로스워드 빌더</h1>
           <p className="builder-description">NYT style crossword를 한글로.</p>
         </div>
 
-        <nav className="mode-switch" aria-label="기능 모드">
-          {(
-            Object.entries(FEATURE_MODE_LABELS) as Array<[FeatureMode, string]>
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              className={`mode-button${
-                activeMode === mode ? " mode-button-active" : ""
-              }`}
-              onClick={() => setActiveMode(mode)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        <div className="header-controls">
+          <button
+            type="button"
+            className="export-trigger"
+            onClick={openExportDialog}
+          >
+            <span className="button-icon" aria-hidden="true">
+              <ExportIcon />
+            </span>
+            내보내기
+          </button>
+
+          <nav className="mode-switch" aria-label="기능 모드">
+            {(
+              Object.entries(FEATURE_MODE_LABELS) as Array<
+                [FeatureMode, string]
+              >
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                className={`mode-button${
+                  activeMode === mode ? " mode-button-active" : ""
+                }`}
+                onClick={() => setActiveMode(mode)}
+              >
+                <span className="button-icon" aria-hidden="true">
+                  {mode === "grid" ? <GridIcon /> : null}
+                  {mode === "lookup" ? <SearchIcon /> : null}
+                  {mode === "clue" ? <ClueIcon /> : null}
+                </span>
+                {label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <div className="workspace-shell">
@@ -632,7 +1020,7 @@ function App() {
                     <p>평균, 최장 {longestEntryLength}</p>
                   </div>
                   <div className="stat-card">
-                    <span className="stats-label">비표준어 수</span>
+                    <span className="stats-label">사전 미등록 단어 수</span>
                     <strong>{invalidEntryCount}</strong>
                     <p>완성된 단어 {filledEntryCount}개</p>
                   </div>
@@ -702,28 +1090,8 @@ function App() {
             <div className="config-stack">
               <section className="config-card">
                 <div className="section-heading">
-                  <p className="section-eyebrow">단어 목록</p>
-                  <h3>사용자 목록</h3>
-                </div>
-
-                <label className="field">
-                  <span>단어</span>
-                  <textarea
-                    className="word-list-input"
-                    value={customWordText}
-                    onChange={(event) => setCustomWordText(event.target.value)}
-                    placeholder={"사과\n학교\n한국어"}
-                  />
-                </label>
-                <p className="helper-text">
-                  한 줄에 하나씩 입력하거나 쉼표로 구분하세요. 추천 시 이 목록을 기본 사전보다 먼저 사용합니다.
-                </p>
-              </section>
-
-              <section className="config-card">
-                <div className="section-heading">
                   <p className="section-eyebrow">검색</p>
-                  <h3>현재 목록 필터</h3>
+                  <h3>네이버 국어사전 검색</h3>
                 </div>
 
                 <label className="field">
@@ -736,18 +1104,19 @@ function App() {
                   />
                 </label>
 
+                <p className="helper-text">
+                  입력한 검색어로 네이버 국어사전 검색 결과를 엽니다.
+                </p>
+
                 <div className="lookup-results">
-                  {filteredCustomWords.length > 0 ? (
-                    filteredCustomWords.map((word) => (
-                      <span key={word} className="lookup-chip">
-                        {word}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="empty-state">
-                      현재 목록에 일치하는 단어가 없습니다.
-                    </p>
-                  )}
+                  <a
+                    className="lookup-link"
+                    href={lookupUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    사전에서 검색하기
+                  </a>
                 </div>
               </section>
             </div>
@@ -886,6 +1255,49 @@ function App() {
           ) : null}
         </aside>
       </div>
+
+      <dialog ref={exportDialogRef} className="export-dialog">
+        <form method="dialog" className="export-dialog-card">
+          <div className="export-dialog-header">
+            <div>
+              <p className="section-eyebrow">내보내기</p>
+              <h2>형식을 선택하세요</h2>
+            </div>
+            <button type="submit" className="export-close-button">
+              닫기
+            </button>
+          </div>
+
+          <div className="export-dialog-actions">
+            <button
+              type="button"
+              className="action-button action-button-secondary"
+              onClick={() => {
+                closeExportDialog();
+                void handleExportPng();
+              }}
+            >
+              <span className="button-icon" aria-hidden="true">
+                <ExportPngIcon />
+              </span>
+              PNG로 내보내기
+            </button>
+            <button
+              type="button"
+              className="action-button action-button-primary"
+              onClick={() => {
+                closeExportDialog();
+                handleExportPdf();
+              }}
+            >
+              <span className="button-icon" aria-hidden="true">
+                <ExportPdfIcon />
+              </span>
+              PDF로 내보내기
+            </button>
+          </div>
+        </form>
+      </dialog>
     </main>
   );
 }
