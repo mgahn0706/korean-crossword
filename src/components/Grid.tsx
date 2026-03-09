@@ -147,6 +147,24 @@ export function Grid({
     }
   };
 
+  const commitCellValue = (
+    rowIndex: number,
+    colIndex: number,
+    rawValue: string,
+    shouldAdvance: boolean,
+  ) => {
+    if (grid[rowIndex]?.[colIndex] === "#" && rawValue === "") {
+      return;
+    }
+
+    const nextValue = normalizeCellValue(rawValue);
+    onCellChange(rowIndex, colIndex, nextValue);
+
+    if (shouldAdvance && nextValue !== "" && nextValue !== "#") {
+      focusNextCell(rowIndex, colIndex);
+    }
+  };
+
   return (
     <div className="grid-wrap">
       <div
@@ -226,12 +244,17 @@ export function Grid({
                     }
                   }}
                   onChange={(event) => {
-                    const nextValue = normalizeCellValue(event.target.value);
-                    onCellChange(rowIndex, colIndex, nextValue);
-
-                    if (nextValue !== "" && nextValue !== "#") {
-                      focusNextCell(rowIndex, colIndex);
+                    if ((event.nativeEvent as InputEvent).isComposing) {
+                      return;
                     }
+
+                    commitCellValue(rowIndex, colIndex, event.target.value, true);
+                  }}
+                  onCompositionEnd={(event) => {
+                    commitCellValue(rowIndex, colIndex, event.currentTarget.value, true);
+                  }}
+                  onBlur={(event) => {
+                    commitCellValue(rowIndex, colIndex, event.currentTarget.value, false);
                   }}
                 />
               </div>

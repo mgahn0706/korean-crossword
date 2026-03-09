@@ -52,7 +52,7 @@ const CLUE_STATUS_LABELS: Record<ClueValidation, string> = {
   noun: "사전 등록 단어",
   missing: "사전 미등록 단어",
 };
-const EXPORT_TITLE = "한국어 크로스워드";
+const DEFAULT_EXPORT_TITLE = "한국어 크로스워드";
 
 function GridIcon() {
   return (
@@ -162,6 +162,7 @@ function wrapExportText(text: string, limit: number) {
 }
 
 function buildExportSvg(
+  title: string,
   grid: CrosswordGrid,
   cellNumbers: Map<string, number>,
   topBarCells: Set<string>,
@@ -261,7 +262,7 @@ function buildExportSvg(
         cellsMarkup.push(
           `<line x1="${x + 1.5}" y1="${y + 3}" x2="${x + cellSize - 1.5}" y2="${
             y + 3
-          }" stroke="#b91c1c" stroke-width="3" />`
+          }" stroke="#111111" stroke-width="3" />`
         );
       }
 
@@ -269,7 +270,7 @@ function buildExportSvg(
         cellsMarkup.push(
           `<line x1="${x + 1.5}" y1="${y + cellSize - 3}" x2="${
             x + cellSize - 1.5
-          }" y2="${y + cellSize - 3}" stroke="#b91c1c" stroke-width="3" />`
+          }" y2="${y + cellSize - 3}" stroke="#111111" stroke-width="3" />`
         );
       }
 
@@ -277,7 +278,7 @@ function buildExportSvg(
         cellsMarkup.push(
           `<line x1="${x + 3}" y1="${y + 1.5}" x2="${x + 3}" y2="${
             y + cellSize - 1.5
-          }" stroke="#b91c1c" stroke-width="3" />`
+          }" stroke="#111111" stroke-width="3" />`
         );
       }
 
@@ -285,7 +286,7 @@ function buildExportSvg(
         cellsMarkup.push(
           `<line x1="${x + cellSize - 3}" y1="${y + 1.5}" x2="${
             x + cellSize - 3
-          }" y2="${y + cellSize - 1.5}" stroke="#b91c1c" stroke-width="3" />`
+          }" y2="${y + cellSize - 1.5}" stroke="#111111" stroke-width="3" />`
         );
       }
     }
@@ -294,7 +295,9 @@ function buildExportSvg(
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
       <rect width="100%" height="100%" fill="#f8f8f6" />
-      <text x="${margin}" y="${titleY}" font-size="22" font-weight="700" fill="#111827">${EXPORT_TITLE}</text>
+      <text x="${margin}" y="${titleY}" font-size="22" font-weight="700" fill="#111827">${escapeXml(
+    title.trim() === "" ? DEFAULT_EXPORT_TITLE : title
+  )}</text>
       ${cellsMarkup.join("")}
       ${acrossMarkup.join("")}
       ${downMarkup.join("")}
@@ -530,7 +533,8 @@ function App() {
   );
   const [symmetry, setSymmetry] = useState<SymmetryMode>("rotational");
   const [activeMode, setActiveMode] = useState<FeatureMode>("grid");
-  const [customWordText, setCustomWordText] = useState("");
+  const [customWordText] = useState("");
+  const [exportTitle, setExportTitle] = useState(DEFAULT_EXPORT_TITLE);
   const [lookupQuery, setLookupQuery] = useState("");
   const [clueTexts, setClueTexts] = useState<Record<string, string>>({});
   const [hiddenClueIds, setHiddenClueIds] = useState<Set<string>>(new Set());
@@ -785,6 +789,7 @@ function App() {
 
   const getExportSvg = () =>
     buildExportSvg(
+      exportTitle,
       grid,
       cellNumbers,
       hiddenBars.topBars,
@@ -852,7 +857,9 @@ function App() {
       <html lang="ko">
         <head>
           <meta charset="UTF-8" />
-          <title>${EXPORT_TITLE}</title>
+          <title>${escapeXml(
+            exportTitle.trim() === "" ? DEFAULT_EXPORT_TITLE : exportTitle
+          )}</title>
           <style>
             body { margin: 0; padding: 32px; font-family: Apple SD Gothic Neo, Malgun Gothic, sans-serif; background: #f8f8f6; color: #111827; }
             .print-shell { display: grid; gap: 24px; }
@@ -893,7 +900,6 @@ function App() {
         <div className="builder-copy">
           <p className="eyebrow">Korean Crossword Builder</p>
           <h1>한국어 크로스워드 빌더</h1>
-          <p className="builder-description">NYT style crossword를 한글로.</p>
         </div>
 
         <div className="header-controls">
@@ -953,10 +959,19 @@ function App() {
               <section className="config-card">
                 <div className="section-heading">
                   <p className="section-eyebrow">격자 설정</p>
-                  <h3>보드 구성</h3>
                 </div>
 
                 <div className="controls controls-two-column">
+                  <label className="field field-full">
+                    <span>제목</span>
+                    <input
+                      type="text"
+                      value={exportTitle}
+                      onChange={(event) => setExportTitle(event.target.value)}
+                      placeholder="제목을 입력하세요"
+                    />
+                  </label>
+
                   <label className="field">
                     <span>행</span>
                     <input
@@ -1003,7 +1018,6 @@ function App() {
               <section className="config-card">
                 <div className="section-heading">
                   <p className="section-eyebrow">격자 통계</p>
-                  <h3>단어 개요</h3>
                 </div>
 
                 <div className="stats-grid">
@@ -1030,12 +1044,24 @@ function App() {
               <section className="config-card">
                 <div className="section-heading">
                   <p className="section-eyebrow">격자 채우기</p>
-                  <h3>추천 채우기</h3>
                 </div>
 
                 <div className="controls">
                   <label className="field">
-                    <span>추천 시도 횟수</span>
+                    <span className="field-label-with-help">
+                      추천 시도 횟수
+                      <span
+                        className="help-tooltip"
+                        tabIndex={0}
+                        aria-label="시도 횟수를 늘리면 더 유효한 격자를 찾을 가능성이 높아지지만 추천 시간이 더 오래 걸립니다."
+                      >
+                        ?
+                        <span className="help-tooltip-bubble" role="tooltip">
+                          시도 횟수를 늘리면 더 유효한 격자를 찾을 가능성이
+                          높아지지만 추천 시간은 더 오래 걸립니다.
+                        </span>
+                      </span>
+                    </span>
                     <input
                       type="number"
                       min="1"
@@ -1091,7 +1117,6 @@ function App() {
               <section className="config-card">
                 <div className="section-heading">
                   <p className="section-eyebrow">검색</p>
-                  <h3>네이버 국어사전 검색</h3>
                 </div>
 
                 <label className="field">
@@ -1127,7 +1152,6 @@ function App() {
               <section className="config-card">
                 <div className="section-heading">
                   <p className="section-eyebrow">가로</p>
-                  <h3>{acrossClues.length}개 항목</h3>
                 </div>
 
                 <div className="clue-list">
@@ -1191,7 +1215,6 @@ function App() {
               <section className="config-card">
                 <div className="section-heading">
                   <p className="section-eyebrow">세로</p>
-                  <h3>{downClues.length}개 항목</h3>
                 </div>
 
                 <div className="clue-list">

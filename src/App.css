@@ -5,15 +5,15 @@
 .builder-shell {
   --workspace-height: calc(100vh - 10.5rem);
   min-height: 100vh;
-  padding: 1.25rem;
+  padding: 1rem;
   background: #f8f8f6;
 }
 
 .app-header {
   display: grid;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-  padding: 1rem 0;
+  gap: 0.9rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0;
   border-bottom: 1px solid #e7e5e4;
 }
 
@@ -26,7 +26,7 @@
 }
 
 .builder-panel {
-  padding: 1rem;
+  padding: 0.85rem;
   border: 1px solid #e7e5e4;
   border-radius: 16px;
   background: #ffffff;
@@ -37,7 +37,7 @@
 
 .eyebrow {
   margin: 0 0 0.5rem;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -52,7 +52,7 @@
 }
 
 .builder-description {
-  margin: 0.65rem 0 0;
+  margin: 0.45rem 0 0;
   max-width: 48ch;
   color: #57534e;
 }
@@ -61,7 +61,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
@@ -69,7 +69,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: end;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .mode-button {
@@ -78,10 +78,11 @@
   gap: 0.45rem;
   border: 1px solid #e7e5e4;
   border-radius: 999px;
-  padding: 0.65rem 0.9rem;
+  padding: 0.52rem 0.78rem;
   background: #ffffff;
   color: #57534e;
   font-weight: 600;
+  font-size: 0.92rem;
 }
 
 .mode-button-subtle {
@@ -99,12 +100,12 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.55rem 0.8rem;
+  padding: 0.46rem 0.72rem;
   border: 1px solid #eceae7;
   border-radius: 999px;
   background: #f8f8f6;
   color: #78716c;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   font-weight: 600;
 }
 
@@ -182,7 +183,7 @@
 }
 
 .panel-header {
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
 }
 
 .panel-header h2,
@@ -195,23 +196,23 @@
 
 .config-stack {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.7rem;
 }
 
 .config-card {
   border: 1px solid #eceae7;
   border-radius: 14px;
-  padding: 1rem;
+  padding: 0.8rem;
   background: #fcfcfb;
 }
 
 .section-heading {
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.65rem;
 }
 
 .section-eyebrow {
-  margin: 0 0 0.3rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -220,7 +221,7 @@
 
 .controls {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.7rem;
 }
 
 .controls-two-column {
@@ -233,16 +234,67 @@
 
 .field {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.32rem;
 }
 
 .field span,
 .stats-label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #78716c;
+}
+
+.field-label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.help-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid #d6d3d1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #78716c;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.help-tooltip-bubble {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 50%;
+  z-index: 10;
+  width: 14rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #111827;
+  color: #f8fafc;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: 0;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.help-tooltip:hover .help-tooltip-bubble,
+.help-tooltip:focus-visible .help-tooltip-bubble {
+  opacity: 1;
+  visibility: visible;
 }
 
 .field input,
@@ -251,10 +303,10 @@
 .clue-item input {
   width: 100%;
   border: 1px solid #d6d3d1;
-  border-radius: 10px;
+  border-radius: 9px;
   background: #ffffff;
-  padding: 0.8rem 0.9rem;
-  font-size: 0.95rem;
+  padding: 0.62rem 0.72rem;
+  font-size: 0.92rem;
   color: #111827;
 }
 
@@ -268,48 +320,48 @@
 }
 
 .word-list-input {
-  min-height: 8rem;
+  min-height: 6rem;
   resize: vertical;
 }
 
 .helper-text,
 .status-text,
 .empty-state {
-  margin: 0.65rem 0 0;
+  margin: 0.45rem 0 0;
   color: #78716c;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .stats-grid {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .stat-card {
   border: 1px solid #eceae7;
   border-radius: 12px;
-  padding: 0.85rem;
+  padding: 0.65rem;
   background: #ffffff;
 }
 
 .stat-card strong {
   display: block;
-  margin-top: 0.35rem;
-  font-size: 1.4rem;
+  margin-top: 0.2rem;
+  font-size: 1.18rem;
   line-height: 1.1;
   color: #111827;
 }
 
 .stat-card p {
-  margin: 0.35rem 0 0;
+  margin: 0.2rem 0 0;
   color: #78716c;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .lookup-results {
   display: flex;
-  margin-top: 0.9rem;
+  margin-top: 0.65rem;
 }
 
 .lookup-link {
@@ -317,8 +369,8 @@
   align-items: center;
   justify-content: center;
   border: 1px solid #d6d3d1;
-  border-radius: 10px;
-  padding: 0.8rem 0.95rem;
+  border-radius: 9px;
+  padding: 0.62rem 0.8rem;
   background: #ffffff;
   color: #111827;
   font-weight: 600;
@@ -332,18 +384,18 @@
 
 .clue-list {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.65rem;
 }
 
 .clue-item {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.38rem;
 }
 
 .clue-meta {
   display: flex;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.45rem;
   align-items: baseline;
   flex-wrap: wrap;
   color: #57534e;
@@ -359,7 +411,7 @@
 
 .clue-warning {
   border-radius: 999px;
-  padding: 0.18rem 0.5rem;
+  padding: 0.14rem 0.42rem;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -370,7 +422,7 @@
 .clue-toggle {
   border: 1px solid #d6d3d1;
   border-radius: 999px;
-  padding: 0.18rem 0.55rem;
+  padding: 0.14rem 0.45rem;
   background: #ffffff;
   color: #57534e;
   font-size: 0.7rem;
@@ -379,7 +431,7 @@
 
 .clue-status {
   border-radius: 999px;
-  padding: 0.18rem 0.5rem;
+  padding: 0.14rem 0.42rem;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -408,14 +460,14 @@
 
 .actions {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.5rem;
   margin-top: 0.1rem;
 }
 
 .action-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 .action-button {
@@ -425,9 +477,9 @@
   gap: 0.45rem;
   width: 100%;
   border: 1px solid #d6d3d1;
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-  font-size: 0.95rem;
+  border-radius: 9px;
+  padding: 0.68rem 0.85rem;
+  font-size: 0.92rem;
   font-weight: 600;
   color: #111827;
   background: #ffffff;
@@ -462,7 +514,7 @@
   min-width: min(28rem, calc(100vw - 2rem));
   border: 1px solid #e7e5e4;
   border-radius: 18px;
-  padding: 1rem;
+  padding: 0.85rem;
   background: #ffffff;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
 }
@@ -471,8 +523,8 @@
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
 }
 
 .export-dialog-header h2 {
@@ -483,13 +535,13 @@
 
 .export-dialog-actions {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .export-close-button {
   border: 1px solid #e7e5e4;
   border-radius: 999px;
-  padding: 0.45rem 0.75rem;
+  padding: 0.36rem 0.62rem;
   background: #ffffff;
   color: #57534e;
   font-size: 0.85rem;
@@ -498,7 +550,7 @@
 
 .grid-panel {
   height: 100%;
-  padding: 1rem;
+  padding: 0.8rem;
   border: 1px solid #e7e5e4;
   border-radius: 16px;
   background: #ffffff;
@@ -510,7 +562,7 @@
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
-  padding: 0.5rem;
+  padding: 0.35rem;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -535,7 +587,7 @@
   content: "";
   position: absolute;
   z-index: 3;
-  background: #6b7280;
+  background: #111111;
 }
 
 .grid-cell-shell-top-bar::before {
