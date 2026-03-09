@@ -1,21 +1,24 @@
-import { useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { Grid } from "./components/Grid";
+import type { CellValue, CrosswordGrid } from "./lib/crossword/types";
 import "./App.css";
 
 const DEFAULT_ROWS = 10;
 const DEFAULT_COLS = 10;
 
-type CellValue = "" | "#" | string;
+type WorkerResponse =
+  | { id: number; success: true; grid: CrosswordGrid }
+  | { id: number; success: false; reason: string };
 
-function createGrid(rows: number, cols: number): CellValue[][] {
+function createGrid(rows: number, cols: number): CrosswordGrid {
   return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ""));
 }
 
 function resizeGrid(
-  currentGrid: CellValue[][],
+  currentGrid: CrosswordGrid,
   nextRows: number,
   nextCols: number,
-): CellValue[][] {
+): CrosswordGrid {
   return Array.from({ length: nextRows }, (_, rowIndex) =>
     Array.from(
       { length: nextCols },
@@ -27,7 +30,28 @@ function resizeGrid(
 function App() {
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [cols, setCols] = useState(DEFAULT_COLS);
-  const [grid, setGrid] = useState<CellValue[][]>(() => createGrid(DEFAULT_ROWS, DEFAULT_COLS));
+  const [grid, setGrid] = useState<CrosswordGrid>(() => createGrid(DEFAULT_ROWS, DEFAULT_COLS));
+  const [isSolving, setIsSolving] = useState(false);
+  const [status, setStatus] = useState("Ready to recommend a fill.");
+  const workerRef = useRef<Worker | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  const getWorker = () => {
+    if (workerRef.current == null) {
+      workerRef.current = new Worker(new URL("./workers/crosswordWorker.ts", import.meta.url), {
+        type: "module",
+      });
+    }
+
+    return workerRef.current;
+  };
 
   const handleRowsChange = (value: number) => {
     const nextRows = Math.max(1, value || 1);
@@ -49,6 +73,49 @@ function App() {
         ),
       ),
     );
+  };
+
+  const handleRecommendFill = async () => {
+    const worker = getWorker();
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    setIsSolving(true);
+    setStatus("Searching common nouns first, then the full Korean noun list if needed.");
+
+    const result = await new Promise<WorkerResponse>((resolve, reject) => {
+      const handleMessage = (event: MessageEvent<WorkerResponse>) => {
+        if (event.data.id !== requestId) {
+          return;
+        }
+
+        worker.removeEventListener("message", handleMessage);
+        worker.removeEventListener("error", handleError);
+        resolve(event.data);
+      };
+
+      const handleError = () => {
+        worker.removeEventListener("message", handleMessage);
+        worker.removeEventListener("error", handleError);
+        reject(new Error("The crossword worker crashed."));
+      };
+
+      worker.addEventListener("message", handleMessage);
+      worker.addEventListener("error", handleError, { once: true });
+      worker.postMessage({ id: requestId, grid });
+    }).finally(() => {
+      setIsSolving(false);
+    });
+
+    if (result.success) {
+      startTransition(() => {
+        setGrid(result.grid);
+      });
+      setStatus("Recommended fill applied.");
+      return;
+    }
+
+    setStatus(result.reason);
   };
 
   const blackCellCount = grid.flat().filter((cell) => cell === "#").length;
@@ -100,6 +167,13 @@ function App() {
             <span className="stats-label">Black cells</span>
             <strong>{blackCellCount}</strong>
           </div>
+        </div>
+
+        <div className="actions">
+          <button className="action-button" type="button" onClick={() => void handleRecommendFill()} disabled={isSolving}>
+            {isSolving ? "Finding Fill..." : "Recommend Fill"}
+          </button>
+          <p className="status-text">{status}</p>
         </div>
       </section>
 

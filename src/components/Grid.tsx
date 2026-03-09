@@ -1,7 +1,7 @@
-type CellValue = "" | "#" | string;
+import type { CellValue, CrosswordGrid } from "../lib/crossword/types";
 
 type GridProps = {
-  grid: CellValue[][];
+  grid: CrosswordGrid;
   onCellChange: (rowIndex: number, colIndex: number, value: CellValue) => void;
 };
 
