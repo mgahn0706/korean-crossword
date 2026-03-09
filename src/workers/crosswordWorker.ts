@@ -552,11 +552,16 @@ function recommendGrid(
 async function loadDictionaries() {
   if (dictionariesPromise == null) {
     dictionariesPromise = Promise.all([
-      import("../fixtures/koreanNounLists"),
+      import("../fixtures/commonNounLists"),
       import("../fixtures/additionalWordLists"),
-    ]).then(([{ COMMON_NOUNS, KOREAN_NOUNS }, { ADDITIONAL_WORD_LIST }]) => [
+      import("../fixtures/koreanDictionaryWords"),
+    ]).then(([
+      { COMMON_NOUNS },
+      { ADDITIONAL_WORD_LIST },
+      { KOREAN_DICTIONARY_WORDS },
+    ]) => [
         prepareDictionary(COMMON_NOUNS),
-        prepareDictionary([...KOREAN_NOUNS, ...ADDITIONAL_WORD_LIST]),
+        prepareDictionary([...KOREAN_DICTIONARY_WORDS, ...ADDITIONAL_WORD_LIST]),
       ]);
   }
 

@@ -90,6 +90,7 @@ export function Grid({
 }: GridProps) {
   const columnCount = grid[0]?.length ?? 0;
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const pointerDownCellKeyRef = useRef<string | null>(null);
   const [activeDirection, setActiveDirection] = useState<"across" | "down">("across");
   const [activeCellKey, setActiveCellKey] = useState<string | null>(null);
   const activeWordCells = getActiveWordCells(grid, activeCellKey, activeDirection);
@@ -185,19 +186,23 @@ export function Grid({
                   spellCheck={false}
                   maxLength={2}
                   value={isBlack ? "" : cell}
+                  onMouseDown={() => {
+                    pointerDownCellKeyRef.current = activeCellKey;
+                  }}
                   onFocus={() => {
                     setActiveCellKey(`${rowIndex}:${colIndex}`);
                   }}
                   onClick={() => {
                     const nextKey = `${rowIndex}:${colIndex}`;
 
-                    if (activeCellKey === nextKey) {
+                    if (pointerDownCellKeyRef.current === nextKey) {
                       setActiveDirection((current) =>
                         current === "across" ? "down" : "across",
                       );
                     }
 
                     setActiveCellKey(nextKey);
+                    pointerDownCellKeyRef.current = nextKey;
                   }}
                   onKeyDown={(event) => {
                     if (isBlack && event.key === "Backspace") {

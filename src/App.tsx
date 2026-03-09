@@ -40,11 +40,11 @@ const FEATURE_MODE_LABELS: Record<FeatureMode, string> = {
   clue: "Clue author",
 };
 const CLUE_STATUS_LABELS: Record<ClueValidation, string> = {
-  incomplete: "incomplete",
-  loading: "loading",
-  common: "common",
-  noun: "noun",
-  missing: "비표준어어",
+  incomplete: "미완성",
+  loading: "로딩 중",
+  common: "흔한 명사",
+  noun: "표준 명사",
+  missing: "비표준어",
 };
 
 function getClueEntries(grid: CrosswordGrid): ClueEntry[] {
@@ -158,17 +158,23 @@ function getHiddenBars(hiddenEntries: ClueEntry[]) {
 
   for (const entry of hiddenEntries) {
     if (entry.direction === "Across") {
-      const firstKey = `${entry.startRow}:${entry.startCol}`;
-      const lastKey = `${entry.startRow}:${entry.startCol + entry.length - 1}`;
-      leftBars.add(firstKey);
-      rightBars.add(lastKey);
+      for (let offset = 0; offset < entry.length; offset += 1) {
+        const cellKey = `${entry.startRow}:${entry.startCol + offset}`;
+        leftBars.add(cellKey);
+        if (offset === entry.length - 1) {
+          rightBars.add(cellKey);
+        }
+      }
       continue;
     }
 
-    const firstKey = `${entry.startRow}:${entry.startCol}`;
-    const lastKey = `${entry.startRow + entry.length - 1}:${entry.startCol}`;
-    topBars.add(firstKey);
-    bottomBars.add(lastKey);
+    for (let offset = 0; offset < entry.length; offset += 1) {
+      const cellKey = `${entry.startRow + offset}:${entry.startCol}`;
+      topBars.add(cellKey);
+      if (offset === entry.length - 1) {
+        bottomBars.add(cellKey);
+      }
+    }
   }
 
   return { topBars, bottomBars, leftBars, rightBars };
@@ -297,12 +303,17 @@ function App() {
     void Promise.all([
       import("./fixtures/koreanNounLists"),
       import("./fixtures/additionalWordLists"),
+      import("./fixtures/koreanDictionaryWords"),
     ]).then(
-      ([{ COMMON_NOUNS, KOREAN_NOUNS }, { ADDITIONAL_WORD_LIST }]) => {
+      ([
+        { COMMON_NOUNS },
+        { ADDITIONAL_WORD_LIST },
+        { KOREAN_DICTIONARY_WORDS },
+      ]) => {
         if (!isCancelled) {
           setDictionarySets({
             common: COMMON_NOUNS,
-            all: new Set([...KOREAN_NOUNS, ...ADDITIONAL_WORD_LIST]),
+            all: new Set([...KOREAN_DICTIONARY_WORDS, ...ADDITIONAL_WORD_LIST]),
           });
         }
       }
@@ -370,11 +381,13 @@ function App() {
     setGrid((currentGrid) =>
       currentGrid.map((row) => row.map((cell) => (cell === "#" ? "#" : "")))
     );
+    setHiddenClueIds(new Set());
     setStatus("Letters cleared.");
   };
 
   const handleClearAll = () => {
     setGrid(createGrid(rows, cols));
+    setHiddenClueIds(new Set());
     setStatus("Grid and black cells cleared.");
   };
 
