@@ -124,7 +124,7 @@ function App() {
     <main className="builder-shell">
       <section className="builder-panel">
         <div className="builder-copy">
-          <p className="eyebrow">Crossword Builder</p>
+          <p className="eyebrow">Korean Crossword Builder</p>
           <h1>Configure the grid and fill each cell.</h1>
           <p className="builder-description">
             Type any single character into a square. Enter <code>.</code> to mark that square
