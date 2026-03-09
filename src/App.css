@@ -138,6 +138,8 @@
   border: 0;
   padding: 0;
   background: transparent;
+  inset: 0;
+  margin: auto;
 }
 
 .export-dialog::backdrop {
@@ -536,6 +538,33 @@
 .export-dialog-actions {
   display: grid;
   gap: 0.6rem;
+}
+
+.export-option-group {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.15rem 0 0.35rem;
+}
+
+.export-option-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+.export-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #111827;
+  font-size: 0.92rem;
+}
+
+.export-option input {
+  margin: 0;
 }
 
 .export-close-button {

@@ -163,6 +163,7 @@ function wrapExportText(text: string, limit: number) {
 
 function buildExportSvg(
   title: string,
+  includeAnswers: boolean,
   grid: CrosswordGrid,
   cellNumbers: Map<string, number>,
   topBarCells: Set<string>,
@@ -247,7 +248,7 @@ function buildExportSvg(
           );
         }
 
-        if (value !== "") {
+        if (includeAnswers && value !== "") {
           cellsMarkup.push(
             `<text x="${x + cellSize / 2}" y="${
               y + cellSize / 2 + 7
@@ -543,6 +544,7 @@ function App() {
   );
   const [isSolving, setIsSolving] = useState(false);
   const [status, setStatus] = useState("격자 추천을 시작할 수 있습니다.");
+  const [exportIncludeAnswers, setExportIncludeAnswers] = useState(true);
   const workerRef = useRef<Worker | null>(null);
   const exportDialogRef = useRef<HTMLDialogElement | null>(null);
   const requestIdRef = useRef(0);
@@ -780,16 +782,17 @@ function App() {
   );
   const exportAcrossClues = visibleAcrossClues.map((entry) => ({
     label: `${entry.number}A`,
-    text: clueTexts[entry.id]?.trim() || `${entry.answer} (${entry.length})`,
+    text: clueTexts[entry.id]?.trim() || `${entry.length}칸`,
   }));
   const exportDownClues = visibleDownClues.map((entry) => ({
     label: `${entry.number}D`,
-    text: clueTexts[entry.id]?.trim() || `${entry.answer} (${entry.length})`,
+    text: clueTexts[entry.id]?.trim() || `${entry.length}칸`,
   }));
 
   const getExportSvg = () =>
     buildExportSvg(
       exportTitle,
+      exportIncludeAnswers,
       grid,
       cellNumbers,
       hiddenBars.topBars,
@@ -1292,6 +1295,28 @@ function App() {
           </div>
 
           <div className="export-dialog-actions">
+            <div className="export-option-group">
+              <p className="export-option-title">내보내기 내용</p>
+              <label className="export-option">
+                <input
+                  type="radio"
+                  name="export-answer-visibility"
+                  checked={exportIncludeAnswers}
+                  onChange={() => setExportIncludeAnswers(true)}
+                />
+                <span>정답 포함</span>
+              </label>
+              <label className="export-option">
+                <input
+                  type="radio"
+                  name="export-answer-visibility"
+                  checked={!exportIncludeAnswers}
+                  onChange={() => setExportIncludeAnswers(false)}
+                />
+                <span>빈 격자만</span>
+              </label>
+            </div>
+
             <button
               type="button"
               className="action-button action-button-secondary"
