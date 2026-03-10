@@ -1,8 +1,8 @@
-import { pokemonNouns } from "./custom/pokemon";
+import { ADDITIONAL_WORD_LIST_DATA } from "./generated/additionalWordList.generated";
 
-const slangs: string[] = ["응아니야", "샤갈", "밤티"];
+const slangs: string[] = [];
 
 export const ADDITIONAL_WORD_LIST = new Set<string>([
-  ...pokemonNouns,
+  ...ADDITIONAL_WORD_LIST_DATA,
   ...slangs,
 ]);

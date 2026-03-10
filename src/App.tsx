@@ -36,6 +36,7 @@ type ExportClue = {
 };
 type DictionarySets = {
   common: Set<string>;
+  additional: Set<string>;
   all: Set<string>;
 };
 type ClueValidation = "incomplete" | "loading" | "common" | "noun" | "missing";
@@ -589,6 +590,7 @@ function App() {
         if (!isCancelled) {
           setDictionarySets({
             common: COMMON_NOUNS,
+            additional: ADDITIONAL_WORD_LIST,
             all: new Set([...KOREAN_DICTIONARY_WORDS, ...ADDITIONAL_WORD_LIST]),
           });
         }
@@ -782,6 +784,13 @@ function App() {
     }
 
     return "missing";
+  };
+  const usesAdditionalWord = (answer: string) => {
+    if (answer.includes("·") || dictionarySets == null) {
+      return false;
+    }
+
+    return dictionarySets.additional.has(answer);
   };
   const isDuplicateAnswer = (answer: string) =>
     (duplicateAnswerCounts.get(answer) ?? 0) > 1;
@@ -1194,56 +1203,62 @@ function App() {
 
                 <div className="clue-list">
                   {acrossClues.length > 0 ? (
-                    acrossClues.map((entry) => (
-                      <label key={entry.id} className="clue-item">
-                        <div className="clue-meta">
-                          <strong>{entry.number}A</strong>
-                          <span className="clue-answer">
-                            {entry.answer} ({entry.length})
-                          </span>
-                          {isDuplicateAnswer(entry.answer) ? (
-                            <span className="clue-warning">중복</span>
-                          ) : null}
-                          <span
-                            className={`clue-status clue-status-${getValidation(
-                              entry.answer
-                            )}`}
-                          >
-                            {CLUE_STATUS_LABELS[getValidation(entry.answer)]}
-                          </span>
-                          {getValidation(entry.answer) === "missing" ? (
-                            <button
-                              type="button"
-                              className="clue-toggle"
-                              onClick={() =>
-                                setHiddenClueIds((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(entry.id)) {
-                                    next.delete(entry.id);
-                                  } else {
-                                    next.add(entry.id);
-                                  }
-                                  return next;
-                                })
-                              }
+                    acrossClues.map((entry) => {
+                      const validation = getValidation(entry.answer);
+                      const isAdditional = usesAdditionalWord(entry.answer);
+
+                      return (
+                        <label key={entry.id} className="clue-item">
+                          <div className="clue-meta">
+                            <strong>{entry.number}A</strong>
+                            <span className="clue-answer">
+                              {entry.answer} ({entry.length})
+                            </span>
+                            {isDuplicateAnswer(entry.answer) ? (
+                              <span className="clue-warning">중복</span>
+                            ) : null}
+                            {isAdditional ? (
+                              <span className="clue-badge">추가 단어</span>
+                            ) : null}
+                            <span
+                              className={`clue-status clue-status-${validation}`}
                             >
-                              {hiddenClueIds.has(entry.id) ? "복원" : "숨김"}
-                            </button>
-                          ) : null}
-                        </div>
-                        <input
-                          type="text"
-                          value={clueTexts[entry.id] ?? ""}
-                          onChange={(event) =>
-                            setClueTexts((current) => ({
-                              ...current,
-                              [entry.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="가로 힌트를 입력하세요"
-                        />
-                      </label>
-                    ))
+                              {CLUE_STATUS_LABELS[validation]}
+                            </span>
+                            {validation === "missing" ? (
+                              <button
+                                type="button"
+                                className="clue-toggle"
+                                onClick={() =>
+                                  setHiddenClueIds((current) => {
+                                    const next = new Set(current);
+                                    if (next.has(entry.id)) {
+                                      next.delete(entry.id);
+                                    } else {
+                                      next.add(entry.id);
+                                    }
+                                    return next;
+                                  })
+                                }
+                              >
+                                {hiddenClueIds.has(entry.id) ? "복원" : "숨김"}
+                              </button>
+                            ) : null}
+                          </div>
+                          <input
+                            type="text"
+                            value={clueTexts[entry.id] ?? ""}
+                            onChange={(event) =>
+                              setClueTexts((current) => ({
+                                ...current,
+                                [entry.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="가로 힌트를 입력하세요"
+                          />
+                        </label>
+                      );
+                    })
                   ) : (
                     <p className="empty-state">아직 가로 힌트가 없습니다.</p>
                   )}
@@ -1257,56 +1272,62 @@ function App() {
 
                 <div className="clue-list">
                   {downClues.length > 0 ? (
-                    downClues.map((entry) => (
-                      <label key={entry.id} className="clue-item">
-                        <div className="clue-meta">
-                          <strong>{entry.number}D</strong>
-                          <span className="clue-answer">
-                            {entry.answer} ({entry.length})
-                          </span>
-                          {isDuplicateAnswer(entry.answer) ? (
-                            <span className="clue-warning">중복</span>
-                          ) : null}
-                          <span
-                            className={`clue-status clue-status-${getValidation(
-                              entry.answer
-                            )}`}
-                          >
-                            {CLUE_STATUS_LABELS[getValidation(entry.answer)]}
-                          </span>
-                          {getValidation(entry.answer) === "missing" ? (
-                            <button
-                              type="button"
-                              className="clue-toggle"
-                              onClick={() =>
-                                setHiddenClueIds((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(entry.id)) {
-                                    next.delete(entry.id);
-                                  } else {
-                                    next.add(entry.id);
-                                  }
-                                  return next;
-                                })
-                              }
+                    downClues.map((entry) => {
+                      const validation = getValidation(entry.answer);
+                      const isAdditional = usesAdditionalWord(entry.answer);
+
+                      return (
+                        <label key={entry.id} className="clue-item">
+                          <div className="clue-meta">
+                            <strong>{entry.number}D</strong>
+                            <span className="clue-answer">
+                              {entry.answer} ({entry.length})
+                            </span>
+                            {isDuplicateAnswer(entry.answer) ? (
+                              <span className="clue-warning">중복</span>
+                            ) : null}
+                            {isAdditional ? (
+                              <span className="clue-badge">추가 단어</span>
+                            ) : null}
+                            <span
+                              className={`clue-status clue-status-${validation}`}
                             >
-                              {hiddenClueIds.has(entry.id) ? "복원" : "숨김"}
-                            </button>
-                          ) : null}
-                        </div>
-                        <input
-                          type="text"
-                          value={clueTexts[entry.id] ?? ""}
-                          onChange={(event) =>
-                            setClueTexts((current) => ({
-                              ...current,
-                              [entry.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="세로 힌트를 입력하세요"
-                        />
-                      </label>
-                    ))
+                              {CLUE_STATUS_LABELS[validation]}
+                            </span>
+                            {validation === "missing" ? (
+                              <button
+                                type="button"
+                                className="clue-toggle"
+                                onClick={() =>
+                                  setHiddenClueIds((current) => {
+                                    const next = new Set(current);
+                                    if (next.has(entry.id)) {
+                                      next.delete(entry.id);
+                                    } else {
+                                      next.add(entry.id);
+                                    }
+                                    return next;
+                                  })
+                                }
+                              >
+                                {hiddenClueIds.has(entry.id) ? "복원" : "숨김"}
+                              </button>
+                            ) : null}
+                          </div>
+                          <input
+                            type="text"
+                            value={clueTexts[entry.id] ?? ""}
+                            onChange={(event) =>
+                              setClueTexts((current) => ({
+                                ...current,
+                                [entry.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="세로 힌트를 입력하세요"
+                          />
+                        </label>
+                      );
+                    })
                   ) : (
                     <p className="empty-state">아직 세로 힌트가 없습니다.</p>
                   )}

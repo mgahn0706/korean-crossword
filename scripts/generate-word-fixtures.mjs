@@ -16,6 +16,11 @@ const dictionaryOutputPath = path.join(
   generatedDir,
   "koreanDictionaryWords.generated.ts",
 );
+const additionalWordsSourcePath = path.join(fixturesDir, "끄코_단어목록.txt");
+const additionalWordsOutputPath = path.join(
+  generatedDir,
+  "additionalWordList.generated.ts",
+);
 const WORD_PATTERN = /^\{'word':\s*'((?:\\'|[^'])*)',\s*'raw':/;
 
 function renderStringArrayExport(exportName, words) {
@@ -39,6 +44,20 @@ function parseDictionaryWords(raw) {
     }
 
     const word = match[1].replace(/\\'/g, "'").trim();
+
+    if (word !== "") {
+      words.push(word);
+    }
+  }
+
+  return words;
+}
+
+function parsePlainWordList(raw) {
+  const words = [];
+
+  for (const line of raw.split(/\r?\n/)) {
+    const word = line.trim();
 
     if (word !== "") {
       words.push(word);
@@ -74,18 +93,27 @@ async function main() {
     }
   }
 
-  if (dictionaryWords.size === 0) {
-    return;
+  if (dictionaryWords.size > 0) {
+    await writeFile(
+      dictionaryOutputPath,
+      renderStringArrayExport(
+        "KOREAN_DICTIONARY_WORD_LIST",
+        Array.from(dictionaryWords),
+      ),
+      "utf8",
+    );
   }
 
-  await writeFile(
-    dictionaryOutputPath,
-    renderStringArrayExport(
-      "KOREAN_DICTIONARY_WORD_LIST",
-      Array.from(dictionaryWords),
-    ),
-    "utf8",
-  );
+  if (await fileExists(additionalWordsSourcePath)) {
+    const raw = await readFile(additionalWordsSourcePath, "utf8");
+    const additionalWords = Array.from(new Set(parsePlainWordList(raw)));
+
+    await writeFile(
+      additionalWordsOutputPath,
+      renderStringArrayExport("ADDITIONAL_WORD_LIST_DATA", additionalWords),
+      "utf8",
+    );
+  }
 }
 
 await main();
