@@ -37,6 +37,7 @@ type ExportClue = {
 type DictionarySets = {
   common: Set<string>;
   additional: Set<string>;
+  abbreviation: Set<string>;
   all: Set<string>;
 };
 type ClueValidation = "incomplete" | "loading" | "common" | "noun" | "missing";
@@ -581,16 +582,19 @@ function App() {
       import("./fixtures/koreanNounLists"),
       import("./fixtures/additionalWordLists"),
       import("./fixtures/koreanDictionaryWords"),
+      import("./fixtures/abbreviationWordLists"),
     ]).then(
       ([
         { COMMON_NOUNS },
         { ADDITIONAL_WORD_LIST },
         { KOREAN_DICTIONARY_WORDS },
+        { ABBREVIATION_WORD_LIST },
       ]) => {
         if (!isCancelled) {
           setDictionarySets({
             common: COMMON_NOUNS,
             additional: ADDITIONAL_WORD_LIST,
+            abbreviation: ABBREVIATION_WORD_LIST,
             all: new Set([...KOREAN_DICTIONARY_WORDS, ...ADDITIONAL_WORD_LIST]),
           });
         }
@@ -791,6 +795,13 @@ function App() {
     }
 
     return dictionarySets.additional.has(answer);
+  };
+  const usesAbbreviationWord = (answer: string) => {
+    if (answer.includes("·") || dictionarySets == null) {
+      return false;
+    }
+
+    return dictionarySets.abbreviation.has(answer);
   };
   const isDuplicateAnswer = (answer: string) =>
     (duplicateAnswerCounts.get(answer) ?? 0) > 1;
@@ -1205,6 +1216,7 @@ function App() {
                   {acrossClues.length > 0 ? (
                     acrossClues.map((entry) => {
                       const validation = getValidation(entry.answer);
+                      const isAbbreviation = usesAbbreviationWord(entry.answer);
                       const isAdditional = usesAdditionalWord(entry.answer);
 
                       return (
@@ -1217,7 +1229,10 @@ function App() {
                             {isDuplicateAnswer(entry.answer) ? (
                               <span className="clue-warning">중복</span>
                             ) : null}
-                            {isAdditional ? (
+                            {isAbbreviation ? (
+                              <span className="clue-badge">초성</span>
+                            ) : null}
+                            {isAdditional && !isAbbreviation ? (
                               <span className="clue-badge">추가 단어</span>
                             ) : null}
                             <span
@@ -1274,6 +1289,7 @@ function App() {
                   {downClues.length > 0 ? (
                     downClues.map((entry) => {
                       const validation = getValidation(entry.answer);
+                      const isAbbreviation = usesAbbreviationWord(entry.answer);
                       const isAdditional = usesAdditionalWord(entry.answer);
 
                       return (
@@ -1286,7 +1302,10 @@ function App() {
                             {isDuplicateAnswer(entry.answer) ? (
                               <span className="clue-warning">중복</span>
                             ) : null}
-                            {isAdditional ? (
+                            {isAbbreviation ? (
+                              <span className="clue-badge">초성</span>
+                            ) : null}
+                            {isAdditional && !isAbbreviation ? (
                               <span className="clue-badge">추가 단어</span>
                             ) : null}
                             <span
