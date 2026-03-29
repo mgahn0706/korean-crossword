@@ -60,12 +60,12 @@ export const ROUTE_CARDS: RouteCard[] = [
   {
     path: ROUTES.quiz,
     label: "문제적 추러스",
-    eyebrow: "준비 중",
+    eyebrow: "사용 가능",
     description:
       "PDF만 올려서 문제적 추러스를 사이트에 빠르게 업로드할 수 있도록 도와줍니다.",
     accentClass:
       "from-fuchsia-200/80 via-pink-200/65 to-rose-300/70 text-slate-950",
-    status: "soon",
+    status: "live",
   },
 ];
 

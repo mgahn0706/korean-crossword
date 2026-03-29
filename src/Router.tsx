@@ -4,6 +4,7 @@ import CrypticPage from "./routes/CrypticPage";
 import FutureRoutePage from "./routes/FutureRoutePage";
 import KoreanCrosswordBuilder from "./routes/KoreanCrosswordBuilder";
 import LandingPage from "./routes/LandingPage";
+import QuizPage from "./routes/QuizPage";
 import { ROUTES, normalizePath } from "./routes/config";
 
 export default function Router() {
@@ -40,14 +41,7 @@ export default function Router() {
         />
       );
     case ROUTES.quiz:
-      return (
-        <FutureRoutePage
-          path={ROUTES.quiz}
-          title="Quiz Builder"
-          summary="This route is set aside for a quiz authoring flow with editable rounds, pacing controls, and reusable question formats."
-          accentClass="from-fuchsia-300 via-pink-200 to-rose-300"
-        />
-      );
+      return <QuizPage />;
     default:
       return (
         <FutureRoutePage
