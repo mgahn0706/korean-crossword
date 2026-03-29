@@ -1,252 +1,40 @@
-import {
-  GlobalWorkerOptions,
-  getDocument,
-  type PDFDocumentProxy,
-} from "pdfjs-dist";
+import JSZip from "jszip";
 import { useEffect, useId, useState } from "react";
 import LinkButton from "./LinkButton";
 import { ROUTES } from "./config";
-
-GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
-
-const PDFJS_ASSET_BASE = `${import.meta.env.BASE_URL}pdfjs/`;
-const PDFJS_CMAP_URL = `${PDFJS_ASSET_BASE}cmaps/`;
-const PDFJS_STANDARD_FONT_URL = `${PDFJS_ASSET_BASE}standard_fonts/`;
-
-type UploadMode = "pdf" | "png" | null;
-type Step = 1 | 2;
-type MeetingCategory = "정기모임" | "OT" | "미니정모" | "대이동";
-
-type ProcessedImage = {
-  id: string;
-  file: File;
-  url: string;
-  width: number;
-  height: number;
-};
-
-interface MeetingType {
-  id: string;
-  title: string;
-  subtitle?: string;
-  imageSource?: string;
-  quizIds: string[];
-  date: {
-    year: number;
-    month: number;
-  };
-}
-
-const EMPTY_MEETING: MeetingType = {
-  id: "",
-  title: "",
-  subtitle: "",
-  imageSource: "",
-  quizIds: [],
-  date: {
-    year: new Date().getFullYear(),
-    month: new Date().getMonth() + 1,
-  },
-};
-
-const DEFAULT_MEETING_CATEGORY: MeetingCategory = "정기모임";
-
-function formatMeetingId(
-  category: MeetingCategory,
-  year: number,
-  month: number,
-  sequence: number
-) {
-  const paddedMonth = String(month).padStart(2, "0");
-
-  switch (category) {
-    case "정기모임":
-      return `${year}-${paddedMonth}`;
-    case "OT":
-      return `${year}-OT-${sequence}`;
-    case "미니정모":
-      return `${year}-MINI-${sequence}`;
-    case "대이동":
-      return `${year}-MOVE-${sequence}`;
-    default:
-      return `${year}-${paddedMonth}`;
-  }
-}
-
-function revokeProcessedImages(images: ProcessedImage[]) {
-  images.forEach((image) => URL.revokeObjectURL(image.url));
-}
-
-function UploadCard({
-  id,
-  title,
-  description,
-  accept,
-  multiple,
-  buttonLabel,
-  variant,
-  onSelect,
-}: {
-  id: string;
-  title: string;
-  description: string;
-  accept: string;
-  multiple: boolean;
-  buttonLabel: string;
-  variant: "primary" | "secondary";
-  onSelect: (files: File[]) => void;
-}) {
-  const isPrimary = variant === "primary";
-
-  return (
-    <label
-      htmlFor={id}
-      className={`group block cursor-pointer ${
-        isPrimary
-          ? "quiz-pdf-float relative overflow-hidden rounded-[2rem] border border-sky-300/60 bg-[linear-gradient(145deg,#eff8ff_0%,#dbeafe_52%,#bfdbfe_100%)] p-6 text-sky-950 shadow-[0_20px_60px_rgba(59,130,246,0.16)] transition duration-300 hover:border-sky-400/70 hover:shadow-[0_24px_70px_rgba(59,130,246,0.22)]"
-          : "rounded-[1.5rem] border border-stone-200 bg-[#fbfaf8] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition hover:border-stone-300 hover:bg-white"
-      }`}
-    >
-      <input
-        id={id}
-        type="file"
-        accept={accept}
-        multiple={multiple}
-        className="sr-only"
-        onChange={(event) => {
-          onSelect(Array.from(event.target.files ?? []));
-          event.currentTarget.value = "";
-        }}
-      />
-      {isPrimary ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.7),_transparent_62%)]" />
-      ) : null}
-      <p
-        className={`text-[0.72rem] font-semibold uppercase tracking-[0.24em] ${
-          isPrimary ? "text-sky-800/70" : "text-stone-500"
-        }`}
-      >
-        업로드 방식
-      </p>
-      <h2
-        className={`mt-3 text-2xl font-semibold ${
-          isPrimary ? "text-sky-950" : "text-slate-900"
-        }`}
-      >
-        {title}
-      </h2>
-      <p
-        className={`mt-3 text-sm leading-6 ${
-          isPrimary ? "text-sky-900/72" : "text-stone-600"
-        }`}
-      >
-        {description}
-      </p>
-      {isPrimary ? (
-        <div className="quiz-pdf-breathe mt-6 inline-flex items-center gap-3 rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition duration-300 group-hover:bg-sky-700">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white">
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="h-4 w-4 fill-none stroke-current stroke-2"
-            >
-              <path d="M12 3v11" />
-              <path d="m7.5 9.5 4.5 4.5 4.5-4.5" />
-              <path d="M5 19h14" />
-            </svg>
-          </span>
-          {buttonLabel}
-        </div>
-      ) : (
-        <div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition group-hover:text-stone-900">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-stone-300 bg-white text-[11px]">
-            PNG
-          </span>
-          {buttonLabel}
-        </div>
-      )}
-    </label>
-  );
-}
-
-async function renderPdfToImages(file: File, onProgress: (text: string) => void) {
-  const buffer = await file.arrayBuffer();
-  const pdf = (await getDocument({
-    data: new Uint8Array(buffer),
-    cMapUrl: PDFJS_CMAP_URL,
-    cMapPacked: true,
-    standardFontDataUrl: PDFJS_STANDARD_FONT_URL,
-    useWorkerFetch: true,
-    useSystemFonts: true,
-  }).promise) as PDFDocumentProxy;
-  const renderScale = Math.max(2, window.devicePixelRatio || 1);
-  const baseName = file.name.replace(/\.pdf$/i, "");
-  const images: ProcessedImage[] = [];
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    onProgress(`PDF ${pageNumber}/${pdf.numPages} 페이지를 PNG로 변환 중...`);
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: renderScale });
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-
-    if (!context) {
-      throw new Error("캔버스를 초기화할 수 없습니다.");
-    }
-
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    await page.render({
-      canvas,
-      canvasContext: context,
-      viewport,
-      intent: "print",
-    }).promise;
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((nextBlob) => {
-        if (nextBlob) {
-          resolve(nextBlob);
-          return;
-        }
-
-        reject(new Error("PNG 파일 생성에 실패했습니다."));
-      }, "image/png");
-    });
-
-    const imageFile = new File(
-      [blob],
-      `${baseName}-${String(pageNumber).padStart(2, "0")}.png`,
-      { type: "image/png" }
-    );
-
-    images.push({
-      id: `${imageFile.name}-${imageFile.size}-${pageNumber}`,
-      file: imageFile,
-      url: URL.createObjectURL(imageFile),
-      width: canvas.width,
-      height: canvas.height,
-    });
-  }
-
-  return images;
-}
-
-function convertPngFiles(files: File[]) {
-  return files.map((file, index) => ({
-    id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
-    file,
-    url: URL.createObjectURL(file),
-    width: 0,
-    height: 0,
-  }));
-}
+import { DEFAULT_MEETING_CATEGORY, EMPTY_MEETING } from "./quiz/constants";
+import { renderPdfToImages } from "./quiz/pdf";
+import StepFourMetadata from "./quiz/StepFourMetadata";
+import StepFiveExport from "./quiz/StepFiveExport";
+import StepOneUpload from "./quiz/StepOneUpload";
+import StepThreeThumbnail from "./quiz/StepThreeThumbnail";
+import StepThreeOrdering from "./quiz/StepThreeOrdering";
+import StepTwoMeeting from "./quiz/StepTwoMeeting";
+import QuizStepper from "./quiz/QuizStepper";
+import type {
+  DragRow,
+  MeetingCategory,
+  MeetingType,
+  ProcessedImage,
+  QuizMetadata,
+  QuizType,
+  SelectionRow,
+  Tags,
+  ThumbnailAsset,
+  UploadMode,
+  Step,
+} from "./quiz/types";
+import {
+  buildQuizId,
+  convertPngFiles,
+  createEmptyQuizMetadata,
+  extractDominantColors,
+  formatMeetingId,
+  removeFromOrderedList,
+  renderThumbnailBlob,
+  reorderItems,
+  revokeProcessedImages,
+} from "./quiz/utils";
 
 export default function QuizPage() {
   const pdfInputId = useId();
@@ -259,16 +47,44 @@ export default function QuizPage() {
   const [statusText, setStatusText] = useState("");
   const [errorText, setErrorText] = useState("");
   const [meetingInfo, setMeetingInfo] = useState<MeetingType>(EMPTY_MEETING);
-  const [quizIdsText, setQuizIdsText] = useState("");
-  const [meetingCategory, setMeetingCategory] =
-    useState<MeetingCategory>(DEFAULT_MEETING_CATEGORY);
+  const [meetingCategory, setMeetingCategory] = useState<MeetingCategory>(
+    DEFAULT_MEETING_CATEGORY
+  );
   const [meetingSequence, setMeetingSequence] = useState(1);
+  const [removedImageIds, setRemovedImageIds] = useState<string[]>([]);
+  const [quizImageIds, setQuizImageIds] = useState<string[]>([]);
+  const [answerImageIds, setAnswerImageIds] = useState<string[]>([]);
+  const [activeSelectionRow, setActiveSelectionRow] =
+    useState<SelectionRow>("quiz");
+  const [draggedImageId, setDraggedImageId] = useState<string | null>(null);
+  const [draggedFromRow, setDraggedFromRow] = useState<DragRow | null>(null);
+  const [activeQuizIndex, setActiveQuizIndex] = useState(0);
+  const [quizMetadataByImageId, setQuizMetadataByImageId] = useState<
+    Record<string, QuizMetadata>
+  >({});
+  const [thumbnailBackgroundColor, setThumbnailBackgroundColor] =
+    useState("#f5e9d4");
+  const [thumbnailDominantColors, setThumbnailDominantColors] = useState<
+    string[]
+  >([]);
+  const [thumbnailCenterImage, setThumbnailCenterImage] =
+    useState<ThumbnailAsset | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
 
   useEffect(() => {
     return () => {
       revokeProcessedImages(processedImages);
     };
   }, [processedImages]);
+
+  useEffect(() => {
+    return () => {
+      if (thumbnailCenterImage?.url.startsWith("blob:")) {
+        URL.revokeObjectURL(thumbnailCenterImage.url);
+      }
+    };
+  }, [thumbnailCenterImage]);
 
   useEffect(() => {
     setMeetingInfo((current) => ({
@@ -280,7 +96,97 @@ export default function QuizPage() {
         meetingSequence
       ),
     }));
-  }, [meetingCategory, meetingSequence, meetingInfo.date.year, meetingInfo.date.month]);
+  }, [
+    meetingCategory,
+    meetingSequence,
+    meetingInfo.date.year,
+    meetingInfo.date.month,
+  ]);
+
+  useEffect(() => {
+    setMeetingInfo((current) => {
+      if ((current.subtitle ?? "").trim() !== "") {
+        return current;
+      }
+
+      return {
+        ...current,
+        subtitle: `${current.date.year}년 ${current.date.month}월 ${meetingCategory}`,
+      };
+    });
+  }, [meetingCategory, meetingInfo.date.year, meetingInfo.date.month]);
+
+  useEffect(() => {
+    setActiveQuizIndex((current) =>
+      quizImageIds.length === 0 ? 0 : Math.min(current, quizImageIds.length - 1)
+    );
+  }, [quizImageIds.length]);
+
+  useEffect(() => {
+    if (processedImages.length === 0) {
+      setThumbnailDominantColors([]);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadDominantColors = async () => {
+      try {
+        const colors = await Promise.all(
+          processedImages.slice(0, 4).map((image) => extractDominantColors(image.url, 3))
+        );
+        const uniqueColors = Array.from(new Set(colors.flat())).slice(0, 8);
+
+        if (!isCancelled) {
+          setThumbnailDominantColors(uniqueColors);
+        }
+      } catch {
+        if (!isCancelled) {
+          setThumbnailDominantColors([]);
+        }
+      }
+    };
+
+    void loadDominantColors();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [processedImages]);
+
+  useEffect(() => {
+    if (step !== 3) {
+      return;
+    }
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const file = Array.from(event.clipboardData?.items ?? [])
+        .find((item) => item.type.startsWith("image/"))
+        ?.getAsFile();
+
+      if (!file) {
+        return;
+      }
+
+      event.preventDefault();
+      const nextAsset = {
+        name: file.name,
+        url: URL.createObjectURL(file),
+      };
+
+      setThumbnailCenterImage((current) => {
+        if (current?.url.startsWith("blob:")) {
+          URL.revokeObjectURL(current.url);
+        }
+        return nextAsset;
+      });
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [step]);
 
   const resetSelection = () => {
     revokeProcessedImages(processedImages);
@@ -292,12 +198,30 @@ export default function QuizPage() {
     setStatusText("");
     setErrorText("");
     setMeetingInfo(EMPTY_MEETING);
-    setQuizIdsText("");
     setMeetingCategory(DEFAULT_MEETING_CATEGORY);
     setMeetingSequence(1);
+    setRemovedImageIds([]);
+    setQuizImageIds([]);
+    setAnswerImageIds([]);
+    setActiveSelectionRow("quiz");
+    setDraggedImageId(null);
+    setDraggedFromRow(null);
+    setActiveQuizIndex(0);
+    setQuizMetadataByImageId({});
+    setThumbnailBackgroundColor("#f5e9d4");
+    setThumbnailDominantColors([]);
+    if (thumbnailCenterImage?.url.startsWith("blob:")) {
+      URL.revokeObjectURL(thumbnailCenterImage.url);
+    }
+    setThumbnailCenterImage(null);
+    setIsExporting(false);
+    setExportStatus("");
   };
 
-  const updateMeetingInfo = (field: keyof MeetingType, value: string | string[]) => {
+  const updateMeetingInfo = (
+    field: keyof MeetingType,
+    value: string | string[]
+  ) => {
     setMeetingInfo((current) => ({
       ...current,
       [field]: value,
@@ -317,21 +241,12 @@ export default function QuizPage() {
     }));
   };
 
-  const updateQuizIdsText = (value: string) => {
-    setQuizIdsText(value);
-    setMeetingInfo((current) => ({
-      ...current,
-      quizIds: value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    }));
-  };
-
   const handleSelect = async (mode: UploadMode, files: File[]) => {
     if (files.length === 0) {
       return;
     }
+
+    const primaryFileName = files[0]?.name.replace(/\.[^.]+$/, "") ?? "";
 
     revokeProcessedImages(processedImages);
     setUploadMode(mode);
@@ -340,6 +255,10 @@ export default function QuizPage() {
     setErrorText("");
     setStep(2);
     setIsProcessing(true);
+    setMeetingInfo((current) => ({
+      ...current,
+      title: current.title.trim() !== "" ? current.title : primaryFileName,
+    }));
 
     try {
       if (mode === "pdf") {
@@ -365,6 +284,236 @@ export default function QuizPage() {
     }
   };
 
+  const setThumbnailCenterImageFromFile = (file: File) => {
+    const nextAsset = {
+      name: file.name,
+      url: URL.createObjectURL(file),
+    };
+
+    setThumbnailCenterImage((current) => {
+      if (current?.url.startsWith("blob:")) {
+        URL.revokeObjectURL(current.url);
+      }
+      return nextAsset;
+    });
+  };
+
+  const toggleRemovedImage = (imageId: string) => {
+    setRemovedImageIds((current) => {
+      const isRemoved = current.includes(imageId);
+
+      if (isRemoved) {
+        return current.filter((item) => item !== imageId);
+      }
+
+      setQuizImageIds((items) => removeFromOrderedList(items, imageId));
+      setAnswerImageIds((items) => removeFromOrderedList(items, imageId));
+      return [...current, imageId];
+    });
+  };
+
+  const appendToSelectionRow = (row: SelectionRow, imageId: string) => {
+    if (removedImageIds.includes(imageId)) {
+      return;
+    }
+
+    const setter = row === "quiz" ? setQuizImageIds : setAnswerImageIds;
+    setter((current) =>
+      current.includes(imageId) ? current : [...current, imageId]
+    );
+  };
+
+  const removeFromSelectionRow = (row: SelectionRow, imageId: string) => {
+    const setter = row === "quiz" ? setQuizImageIds : setAnswerImageIds;
+    setter((current) => current.filter((item) => item !== imageId));
+  };
+
+  const handleRowDrop = (row: SelectionRow, targetId: string | null) => {
+    if (!draggedImageId || !draggedFromRow) {
+      return;
+    }
+
+    const targetSetter = row === "quiz" ? setQuizImageIds : setAnswerImageIds;
+
+    if (draggedFromRow === row) {
+      targetSetter((current) =>
+        reorderItems(current, draggedImageId, targetId)
+      );
+    } else {
+      if (draggedFromRow !== "all") {
+        const sourceSetter =
+          draggedFromRow === "quiz" ? setQuizImageIds : setAnswerImageIds;
+        sourceSetter((current) =>
+          current.filter((item) => item !== draggedImageId)
+        );
+      }
+
+      targetSetter((current) => {
+        const baseItems = current.filter((item) => item !== draggedImageId);
+        if (targetId === null || !baseItems.includes(targetId)) {
+          return [...baseItems, draggedImageId];
+        }
+        const targetIndex = baseItems.indexOf(targetId);
+        baseItems.splice(targetIndex, 0, draggedImageId);
+        return baseItems;
+      });
+    }
+
+    setDraggedImageId(null);
+    setDraggedFromRow(null);
+  };
+
+  const totalQuizItems = quizImageIds.length;
+  const currentQuizImageId = quizImageIds[activeQuizIndex] ?? null;
+  const currentAnswerImageId = answerImageIds[activeQuizIndex] ?? null;
+  const currentQuizImage =
+    processedImages.find((image) => image.id === currentQuizImageId) ?? null;
+  const currentAnswerImage =
+    processedImages.find((image) => image.id === currentAnswerImageId) ?? null;
+  const currentQuizMetadata =
+    (currentQuizImageId
+      ? quizMetadataByImageId[currentQuizImageId]
+      : undefined) ?? createEmptyQuizMetadata();
+  const currentQuizId =
+    currentQuizImageId && meetingInfo.id.trim() !== ""
+      ? buildQuizId(meetingInfo.id, activeQuizIndex + 1)
+      : "";
+  const currentQuizImageSource = currentQuizImage?.file.name ?? "";
+
+  const updateCurrentQuizMetadata = (
+    field: keyof QuizMetadata,
+    value: string | string[] | Tags[]
+  ) => {
+    if (!currentQuizImageId) {
+      return;
+    }
+
+    setQuizMetadataByImageId((current) => ({
+      ...current,
+      [currentQuizImageId]: {
+        ...(current[currentQuizImageId] ?? createEmptyQuizMetadata()),
+        [field]: value,
+      },
+    }));
+  };
+
+  const toggleCurrentQuizTag = (tag: Tags) => {
+    const nextTags = currentQuizMetadata.tags.includes(tag)
+      ? currentQuizMetadata.tags.filter((item) => item !== tag)
+      : [...currentQuizMetadata.tags, tag];
+
+    updateCurrentQuizMetadata("tags", nextTags);
+  };
+
+  const isMeetingConfigComplete =
+    meetingInfo.id.trim() !== "" &&
+    meetingInfo.title.trim() !== "" &&
+    Number.isFinite(meetingInfo.date.year) &&
+    meetingInfo.date.year >= 2000 &&
+    meetingInfo.date.year <= 2100 &&
+    Number.isFinite(meetingInfo.date.month) &&
+    meetingInfo.date.month >= 1 &&
+    meetingInfo.date.month <= 12;
+
+  const quizData: QuizType[] = quizImageIds.map((imageId, index) => {
+    const metadata = quizMetadataByImageId[imageId] ?? createEmptyQuizMetadata();
+    const quizId = buildQuizId(meetingInfo.id, index + 1);
+
+    return {
+      id: quizId,
+      meetingId: meetingInfo.id,
+      quizNumber: index + 1,
+      title: metadata.title.trim(),
+      creators: metadata.creators,
+      quizImageSource: `quizImages/${meetingInfo.id}-${quizId}.png`,
+      answer: metadata.answer.trim() === "" ? null : metadata.answer.trim(),
+      tags: metadata.tags,
+    };
+  });
+
+  const hasAnswerImages = quizData.some((_, index) =>
+    Boolean(answerImageIds[index])
+  );
+  const hasThumbnail = thumbnailCenterImage !== null;
+
+  const handleDownloadZip = async () => {
+    if (quizData.length === 0 || meetingInfo.id.trim() === "") {
+      return;
+    }
+
+    setIsExporting(true);
+    setExportStatus("ZIP 파일을 준비하는 중입니다...");
+
+    try {
+      const zip = new JSZip();
+      const quizImagesFolder = zip.folder("quizImages");
+
+      if (!quizImagesFolder) {
+        throw new Error("ZIP 폴더를 생성할 수 없습니다.");
+      }
+
+      for (const quiz of quizData) {
+        const quizImageId = quizImageIds[quiz.quizNumber - 1];
+        const answerImageId = answerImageIds[quiz.quizNumber - 1];
+        const quizImage = processedImages.find((item) => item.id === quizImageId);
+        const answerImage = processedImages.find(
+          (item) => item.id === answerImageId
+        );
+
+        if (quizImage) {
+          quizImagesFolder.file(
+            `${meetingInfo.id}-${quiz.id}.png`,
+            await quizImage.file.arrayBuffer()
+          );
+        }
+
+        if (answerImage) {
+          quizImagesFolder.file(
+            `${meetingInfo.id}-${quiz.id}-answer.png`,
+            await answerImage.file.arrayBuffer()
+          );
+        }
+      }
+
+      const meetingExport: MeetingType = {
+        ...meetingInfo,
+        imageSource: thumbnailCenterImage ? "thumbnail.png" : "",
+        quizIds: quizData.map((quiz) => quiz.id),
+      };
+
+      if (thumbnailCenterImage) {
+        const thumbnailBlob = await renderThumbnailBlob({
+          backgroundColor: thumbnailBackgroundColor,
+          centerImageUrl: thumbnailCenterImage.url,
+        });
+        zip.file("thumbnail.png", thumbnailBlob);
+      }
+
+      zip.file("quizData.json", JSON.stringify(quizData, null, 2));
+      zip.file("meeting.json", JSON.stringify(meetingExport, null, 2));
+
+      setExportStatus("ZIP 파일을 압축하는 중입니다...");
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${meetingInfo.id}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setExportStatus("ZIP 다운로드가 시작되었습니다.");
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error
+          ? error.message
+          : "ZIP 생성 중 알 수 없는 오류가 발생했습니다."
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#f6f4ef] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -378,391 +527,104 @@ export default function QuizPage() {
           <p className="text-sm text-stone-500">문제적 추러스 업로드</p>
         </div>
 
-        <section className="mt-8 rounded-[2rem] border border-stone-200 bg-white px-5 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:px-6">
-          <div className="flex items-start gap-4 sm:items-center">
-            <div
-              className={`flex items-center gap-3 ${
-                step === 1
-                  ? "text-slate-900"
-                  : "text-stone-400"
-              }`}
-            >
-              <span
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
-                  step === 1
-                    ? "bg-slate-900 text-white"
-                    : "bg-stone-100 text-stone-500"
-                }`}
-              >
-                1
-              </span>
-              <div>
-                <p className="text-sm font-semibold">업로드</p>
-                <p className="text-xs text-stone-500">
-                  PDF 또는 PNG 선택
-                </p>
-              </div>
-            </div>
-
-            <div
-              className={`mt-5 h-px flex-1 bg-stone-200 sm:mt-0`}
-            />
-
-            <div
-              className={`flex items-center gap-3 ${
-                step === 2 ? "text-slate-900" : "text-stone-400"
-              }`}
-            >
-              <span
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
-                  step === 2
-                    ? "bg-slate-900 text-white"
-                    : "bg-stone-100 text-stone-500"
-                }`}
-              >
-                2
-              </span>
-              <div>
-                <p className="text-sm font-semibold">설정</p>
-                <p className="text-xs text-stone-500">
-                  PNG 확인 및 모임 정보
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+        <QuizStepper step={step} />
 
         {step === 1 ? (
-          <section className="mt-6 space-y-4">
-            <UploadCard
-              id={pdfInputId}
-              title="PDF 파일 업로드"
-              description="문제집이나 정리본이 하나의 PDF로 준비되어 있다면 이 방식으로 바로 시작할 수 있습니다."
-              accept="application/pdf"
-              multiple={false}
-              buttonLabel="PDF 바로 업로드"
-              variant="primary"
-              onSelect={(files) => {
-                void handleSelect("pdf", files);
-              }}
-            />
-
-            <div className="flex flex-col items-start gap-2 px-1 py-2">
-              <p className="text-sm text-stone-600">
-                PDF가 아니라 이미 페이지별 이미지가 준비되어 있다면 PNG 여러 장으로도 시작할 수 있습니다.
-              </p>
-              <label
-                htmlFor={pngInputId}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-full px-2 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-100 hover:text-slate-900"
-              >
-                <input
-                  id={pngInputId}
-                  type="file"
-                  accept="image/png"
-                  multiple
-                  className="sr-only"
-                  onChange={(event) => {
-                    void handleSelect("png", Array.from(event.target.files ?? []));
-                    event.currentTarget.value = "";
-                  }}
-                />
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-stone-500">
-                  <svg
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                    className="h-4 w-4 fill-none stroke-current stroke-2"
-                  >
-                    <path d="M12 5v10" />
-                    <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
-                    <path d="M6 19h12" />
-                  </svg>
-                </span>
-                <span>PNG 파일 여러 장 업로드</span>
-              </label>
-            </div>
-          </section>
+          <StepOneUpload
+            pdfInputId={pdfInputId}
+            pngInputId={pngInputId}
+            onSelect={handleSelect}
+          />
+        ) : step === 2 ? (
+          <StepTwoMeeting
+            uploadMode={uploadMode}
+            sourceFiles={sourceFiles}
+            processedImages={processedImages}
+            isProcessing={isProcessing}
+            statusText={statusText}
+            errorText={errorText}
+            meetingInfo={meetingInfo}
+            meetingCategory={meetingCategory}
+            isMeetingConfigComplete={isMeetingConfigComplete}
+            onReset={resetSelection}
+            onMeetingCategoryChange={setMeetingCategory}
+            onMeetingInfoChange={updateMeetingInfo}
+            onMeetingDateChange={updateMeetingDate}
+            onNext={() => setStep(3)}
+          />
+        ) : step === 3 ? (
+          <StepThreeThumbnail
+            processedImages={processedImages}
+            backgroundColor={thumbnailBackgroundColor}
+            dominantColors={thumbnailDominantColors}
+            centerImage={thumbnailCenterImage}
+            onBack={() => setStep(2)}
+            onNext={() => setStep(4)}
+            onBackgroundColorChange={setThumbnailBackgroundColor}
+            onCenterImageSelect={setThumbnailCenterImageFromFile}
+          />
+        ) : step === 4 ? (
+          <StepThreeOrdering
+            processedImages={processedImages}
+            removedImageIds={removedImageIds}
+            quizImageIds={quizImageIds}
+            answerImageIds={answerImageIds}
+            activeSelectionRow={activeSelectionRow}
+            onBack={() => setStep(3)}
+            onReset={resetSelection}
+            onSelectRow={setActiveSelectionRow}
+            onAppendToActiveRow={(imageId) =>
+              appendToSelectionRow(activeSelectionRow, imageId)
+            }
+            onToggleRemovedImage={toggleRemovedImage}
+            onRemoveFromSelectionRow={removeFromSelectionRow}
+            onDragStart={(imageId, row) => {
+              setDraggedImageId(imageId);
+              setDraggedFromRow(row);
+            }}
+            onDragEnd={() => {
+              setDraggedImageId(null);
+              setDraggedFromRow(null);
+            }}
+            onRowDrop={handleRowDrop}
+            onNext={() => setStep(5)}
+          />
+        ) : step === 5 ? (
+          <StepFourMetadata
+            totalQuizItems={totalQuizItems}
+            activeQuizIndex={activeQuizIndex}
+            quizImageIds={quizImageIds}
+            currentQuizImage={currentQuizImage}
+            currentAnswerImage={currentAnswerImage}
+            currentQuizMetadata={currentQuizMetadata}
+            currentQuizId={currentQuizId}
+            meetingId={meetingInfo.id}
+            currentQuizImageSource={currentQuizImageSource}
+            onChangeIndex={(next) => {
+              if (typeof next === "function") {
+                setActiveQuizIndex(next);
+                return;
+              }
+              setActiveQuizIndex(next);
+            }}
+            onBack={() => setStep(4)}
+            onNext={() => setStep(6)}
+            onMetadataChange={updateCurrentQuizMetadata}
+            onToggleTag={toggleCurrentQuizTag}
+          />
         ) : (
-          <section className="mt-6 space-y-6">
-            <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
-              <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <h2 className="text-2xl font-semibold text-slate-900">
-                      변환된 이미지
-                    </h2>
-                    <p className="mt-2 text-sm text-stone-600">
-                      한눈에 비교할 수 있도록 작은 멀티플로 정리했습니다.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={resetSelection}
-                    className="inline-flex items-center rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white"
-                  >
-                    다시 업로드
-                  </button>
-                </div>
-
-                {isProcessing ? (
-                  <div className="mt-5 flex items-center gap-3 rounded-[1.25rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                    <span className="inline-flex h-5 w-5 items-center justify-center">
-                      <svg
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                        className="h-5 w-5 animate-spin fill-none stroke-current stroke-2"
-                      >
-                        <path d="M21 12a9 9 0 1 1-2.64-6.36" className="opacity-30" />
-                        <path d="M21 3v6h-6" />
-                      </svg>
-                    </span>
-                    <p className="leading-6">
-                      {statusText || "이미지를 준비하는 중입니다. 잠시만 기다려주세요."}
-                    </p>
-                  </div>
-                ) : null}
-
-                {!isProcessing && processedImages.length === 0 ? (
-                  <p className="mt-4 text-sm leading-6 text-stone-600">
-                    아직 생성된 PNG가 없습니다.
-                  </p>
-                ) : null}
-
-                <ul className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                  {processedImages.map((image, index) => (
-                    <li
-                      key={image.id}
-                      className="overflow-hidden rounded-[1.1rem] border border-stone-200 bg-stone-50"
-                    >
-                      <div className="relative aspect-video overflow-hidden bg-white">
-                        <span className="absolute left-2 top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-2 text-xs font-semibold text-white shadow-md">
-                          {index + 1}
-                        </span>
-                        <img
-                          src={image.url}
-                          alt={`${index + 1}번째 페이지 미리보기`}
-                          className="h-full w-full object-contain"
-                        />
-                      </div>
-                      <div className="space-y-1 px-3 py-2 text-xs text-stone-600">
-                        <p className="truncate font-medium text-slate-900" title={image.file.name}>
-                          {image.file.name}
-                        </p>
-                        <p>{Math.max(1, Math.round(image.file.size / 1024))} KB</p>
-                        {image.width > 0 && image.height > 0 ? (
-                          <p className="tabular-nums">
-                            {image.width} × {image.height}
-                          </p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <aside className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
-                  Meeting Setup
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-                  모임 정보 설정
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-stone-600">
-                  `MeetingType`에 맞는 모임 메타데이터를 먼저 정리합니다.
-                </p>
-
-                <div className="mt-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        모임 유형
-                      </span>
-                      <select
-                        value={meetingCategory}
-                        onChange={(event) =>
-                          setMeetingCategory(event.target.value as MeetingCategory)
-                        }
-                        className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                      >
-                        <option value="정기모임">정기모임</option>
-                        <option value="OT">OT</option>
-                        <option value="미니정모">미니정모</option>
-                        <option value="대이동">대이동</option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        생성된 ID
-                      </span>
-                      <div className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-100 px-4 py-3 text-base font-medium text-slate-900">
-                        {meetingInfo.id}
-                      </div>
-                    </label>
-                  </div>
-
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                      모임 이름
-                    </span>
-                    <input
-                      type="text"
-                      value={meetingInfo.title}
-                      onChange={(event) =>
-                        updateMeetingInfo("title", event.target.value)
-                      }
-                      placeholder="예: 2026 봄 정기 모임"
-                      className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                      부제
-                    </span>
-                    <input
-                      type="text"
-                      value={meetingInfo.subtitle ?? ""}
-                      onChange={(event) =>
-                        updateMeetingInfo("subtitle", event.target.value)
-                      }
-                      placeholder="예: 추러스 정기 시즌 모임"
-                      className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                      대표 이미지 경로
-                    </span>
-                    <input
-                      type="text"
-                      value={meetingInfo.imageSource ?? ""}
-                      onChange={(event) =>
-                        updateMeetingInfo("imageSource", event.target.value)
-                      }
-                      placeholder="예: /images/meetings/2026-spring-01.png"
-                      className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        연도
-                      </span>
-                      <input
-                        type="number"
-                        min={2000}
-                        max={2100}
-                        value={meetingInfo.date.year}
-                        onChange={(event) =>
-                          updateMeetingDate(
-                            "year",
-                            Number(event.target.value) || EMPTY_MEETING.date.year
-                          )
-                        }
-                        className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        월
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={12}
-                        value={meetingInfo.date.month}
-                        onChange={(event) =>
-                          updateMeetingDate(
-                            "month",
-                            Math.min(
-                              12,
-                              Math.max(
-                                1,
-                                Number(event.target.value) || EMPTY_MEETING.date.month
-                              )
-                            )
-                          )
-                        }
-                        className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                      />
-                    </label>
-                  </div>
-
-                  {meetingCategory !== "정기모임" ? (
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                        차수
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={meetingSequence}
-                        onChange={(event) =>
-                          setMeetingSequence(
-                            Math.max(1, Number(event.target.value) || 1)
-                          )
-                        }
-                        className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                      />
-                    </label>
-                  ) : null}
-
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                      Quiz IDs
-                    </span>
-                    <textarea
-                      rows={4}
-                      value={quizIdsText}
-                      onChange={(event) => updateQuizIdsText(event.target.value)}
-                      placeholder={"quiz-001\nquiz-002\nquiz-003"}
-                      className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-                    />
-                  </label>
-                </div>
-              </aside>
-            </section>
-
-            <section className="rounded-[1.5rem] border border-stone-200 bg-white/80 px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <div className="flex flex-col gap-3 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span>
-                    업로드 방식
-                    <span className="ml-2 font-semibold text-slate-900">
-                      {uploadMode === "pdf" ? "PDF 한 개" : "PNG 여러 장"}
-                    </span>
-                  </span>
-                  <span className="hidden text-stone-300 sm:inline">•</span>
-                  <span>
-                    원본 파일
-                    <span className="ml-2 font-semibold text-slate-900">
-                      {sourceFiles.length}
-                    </span>
-                  </span>
-                  <span className="hidden text-stone-300 sm:inline">•</span>
-                  <span>
-                    생성된 PNG
-                    <span className="ml-2 font-semibold text-slate-900">
-                      {processedImages.length}
-                    </span>
-                  </span>
-                </div>
-
-                {statusText !== "" ? (
-                  <p className="text-sm text-sky-900">{statusText}</p>
-                ) : null}
-              </div>
-
-              {errorText !== "" ? (
-                <div className="mt-3 rounded-[1rem] border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-                  {errorText}
-                </div>
-              ) : null}
-            </section>
-          </section>
+          <StepFiveExport
+            meetingInfo={meetingInfo}
+            quizData={quizData}
+            hasAnswerImages={hasAnswerImages}
+            hasThumbnail={hasThumbnail}
+            isExporting={isExporting}
+            exportStatus={exportStatus}
+            onBack={() => setStep(5)}
+            onDownload={() => {
+              void handleDownloadZip();
+            }}
+          />
         )}
       </div>
     </main>
