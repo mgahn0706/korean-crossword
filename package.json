@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "generate:fixtures": "node scripts/generate-word-fixtures.mjs",
-    "prebuild": "npm run generate:fixtures",
+    "sync:pdfjs-assets": "node scripts/sync-pdfjs-assets.mjs",
+    "prebuild": "npm run generate:fixtures && npm run sync:pdfjs-assets",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -14,6 +15,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.0",
     "es-hangul": "^2.3.8",
+    "pdfjs-dist": "^5.5.207",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.2.0"
