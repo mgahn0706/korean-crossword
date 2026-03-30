@@ -1,4 +1,5 @@
 import { QUIZ_TAGS, QUIZ_TAG_KOREAN_NAME } from "./constants";
+import { QUIZ_TAG_DESCRIPTION } from "./tagDescriptions";
 import type { ProcessedImage, QuizMetadata, Tags } from "./types";
 
 export default function StepFourMetadata({
@@ -245,6 +246,7 @@ export default function StepFourMetadata({
                       key={tag}
                       type="button"
                       onClick={() => onToggleTag(tag)}
+                      title={QUIZ_TAG_DESCRIPTION[tag]}
                       className={`inline-flex items-center rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${
                         isSelected
                           ? "border-slate-900 bg-slate-900 text-white"
