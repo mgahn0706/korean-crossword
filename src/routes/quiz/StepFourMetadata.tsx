@@ -39,20 +39,26 @@ export default function StepFourMetadata({
     <section className="mt-5 space-y-4">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="relative rounded-[1.75rem] border border-stone-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-          <div className="hidden xl:block">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
+                Quiz Preview
+              </p>
+              <h2 className="mt-1 text-xl font-semibold text-slate-900">
+                퀴즈 미리보기
+              </h2>
+            </div>
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() =>
                   onChangeIndex((current) => Math.max(0, current - 1))
                 }
                 disabled={activeQuizIndex === 0}
-                className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-stone-200 bg-white/96 text-2xl text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
+                className="inline-flex h-11 min-w-11 items-center justify-center rounded-full border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
               >
-                ‹
+                이전
               </button>
-            </div>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-4">
               <button
                 type="button"
                 onClick={() =>
@@ -63,20 +69,11 @@ export default function StepFourMetadata({
                 disabled={
                   totalQuizItems === 0 || activeQuizIndex >= totalQuizItems - 1
                 }
-                className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-stone-200 bg-white/96 text-2xl text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
+                className="inline-flex h-11 min-w-11 items-center justify-center rounded-full border border-stone-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
               >
-                ›
+                다음
               </button>
             </div>
-          </div>
-
-          <div>
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
-              Quiz Preview
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-900">
-              퀴즈 미리보기
-            </h2>
           </div>
 
           <div className="mt-4 overflow-hidden rounded-[1.25rem] border border-stone-200 bg-stone-50">
@@ -100,13 +97,13 @@ export default function StepFourMetadata({
             </div>
           </div>
 
-          <div className="mt-3 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-stone-50">
-            <div className="border-b border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+          <div className="mt-3 overflow-hidden rounded-[1rem] border border-stone-200 bg-stone-50">
+            <div className="border-b border-stone-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-900">
               {totalQuizItems === 0
                 ? "정답 이미지"
                 : `${activeQuizIndex + 1}번 문제 정답 이미지`}
             </div>
-            <div className="aspect-[16/4.75] bg-white">
+            <div className="flex h-24 items-center justify-center bg-white sm:h-28">
               {currentAnswerImage ? (
                 <img
                   src={currentAnswerImage.url}
@@ -120,33 +117,6 @@ export default function StepFourMetadata({
               )}
             </div>
           </div>
-
-          <div className="mt-3 flex gap-3 xl:hidden">
-            <button
-              type="button"
-              onClick={() =>
-                onChangeIndex((current) => Math.max(0, current - 1))
-              }
-              disabled={activeQuizIndex === 0}
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-stone-200 bg-white text-base font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
-            >
-              이전
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                onChangeIndex((current) =>
-                  Math.min(totalQuizItems - 1, current + 1)
-                )
-              }
-              disabled={
-                totalQuizItems === 0 || activeQuizIndex >= totalQuizItems - 1
-              }
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-stone-200 bg-white text-base font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
-            >
-              다음
-            </button>
-          </div>
         </div>
 
         <aside className="rounded-[1.75rem] border border-stone-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
@@ -158,6 +128,56 @@ export default function StepFourMetadata({
           </h2>
 
           <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-stone-500">
+              <span>
+                퀴즈 ID
+                <span className="ml-1 font-medium text-slate-900">
+                  {currentQuizId || "-"}
+                </span>
+              </span>
+              <span className="hidden text-stone-300 sm:inline">•</span>
+              <span>
+                모임 ID
+                <span className="ml-1 font-medium text-slate-900">
+                  {meetingId || "-"}
+                </span>
+              </span>
+              <span className="hidden text-stone-300 sm:inline">•</span>
+              <span>
+                문제 번호
+                <span className="ml-1 font-medium text-slate-900">
+                  {totalQuizItems === 0 ? "-" : activeQuizIndex + 1}
+                </span>
+              </span>
+              <span className="hidden text-stone-300 sm:inline">•</span>
+              <span
+                className="max-w-full truncate"
+                title={currentQuizImageSource}
+              >
+                이미지
+                <span className="ml-1 font-medium text-slate-900">
+                  {currentQuizImageSource || "-"}
+                </span>
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {quizImageIds.map((imageId, index) => (
+                <button
+                  key={imageId}
+                  type="button"
+                  onClick={() => onChangeIndex(index)}
+                  className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    activeQuizIndex === index
+                      ? "bg-slate-900 text-white"
+                      : "border border-stone-200 bg-white text-slate-700 hover:border-stone-300 hover:bg-stone-50"
+                  }`}
+                >
+                  {index + 1}번
+                </button>
+              ))}
+            </div>
+
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
                 제목
@@ -237,105 +257,25 @@ export default function StepFourMetadata({
                 })}
               </div>
             </div>
-          </div>
-        </aside>
-      </section>
 
-      <section className="rounded-[1.35rem] border border-stone-200 bg-white/80 px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 pt-2">
               <button
                 type="button"
-                onClick={() =>
-                  onChangeIndex((current) => Math.max(0, current - 1))
-                }
-                disabled={activeQuizIndex === 0}
-                className="inline-flex items-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
+                onClick={onBack}
+                className="inline-flex items-center rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white"
               >
-                이전 문제
+                순서 설정으로 돌아가기
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  onChangeIndex((current) =>
-                    Math.min(totalQuizItems - 1, current + 1)
-                  )
-                }
-                disabled={
-                  totalQuizItems === 0 || activeQuizIndex >= totalQuizItems - 1
-                }
-                className="inline-flex items-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:text-stone-300"
+                onClick={onNext}
+                className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
               >
-                다음 문제
+                내보내기 확인
               </button>
             </div>
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex items-center rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white"
-            >
-              순서 설정으로 돌아가기
-            </button>
-            <button
-              type="button"
-              onClick={onNext}
-              className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-            >
-              내보내기 확인
-            </button>
           </div>
-
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-stone-500">
-            <span>
-              퀴즈 ID
-              <span className="ml-1 font-medium text-slate-900">
-                {currentQuizId || "-"}
-              </span>
-            </span>
-            <span className="hidden text-stone-300 sm:inline">•</span>
-            <span>
-              모임 ID
-              <span className="ml-1 font-medium text-slate-900">
-                {meetingId || "-"}
-              </span>
-            </span>
-            <span className="hidden text-stone-300 sm:inline">•</span>
-            <span>
-              문제 번호
-              <span className="ml-1 font-medium text-slate-900">
-                {totalQuizItems === 0 ? "-" : activeQuizIndex + 1}
-              </span>
-            </span>
-            <span className="hidden text-stone-300 sm:inline">•</span>
-            <span
-              className="max-w-full truncate"
-              title={currentQuizImageSource}
-            >
-              이미지
-              <span className="ml-1 font-medium text-slate-900">
-                {currentQuizImageSource || "-"}
-              </span>
-            </span>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {quizImageIds.map((imageId, index) => (
-              <button
-                key={imageId}
-                type="button"
-                onClick={() => onChangeIndex(index)}
-                className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  activeQuizIndex === index
-                    ? "bg-slate-900 text-white"
-                    : "border border-stone-200 bg-white text-slate-700 hover:border-stone-300 hover:bg-stone-50"
-                }`}
-              >
-                {index + 1}번
-              </button>
-            ))}
-          </div>
-        </div>
+        </aside>
       </section>
     </section>
   );

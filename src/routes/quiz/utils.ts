@@ -11,19 +11,19 @@ export function formatMeetingId(
   month: number,
   sequence: number
 ) {
-  const paddedMonth = String(month).padStart(2, "0");
+  const monthText = String(month);
 
   switch (category) {
     case "정기모임":
-      return `${year}-${paddedMonth}`;
+      return `${year}-${monthText}`;
     case "OT":
       return `OT-${sequence}`;
     case "미니정모":
-      return `${year}-${paddedMonth}-mini`;
+      return `${year}-${monthText}-mini`;
     case "대이동":
       return `${year}-MOVE-${sequence}`;
     default:
-      return `${year}-${paddedMonth}`;
+      return `${year}-${monthText}`;
   }
 }
 
@@ -71,8 +71,7 @@ export function createEmptyQuizMetadata(): QuizMetadata {
 }
 
 export function buildQuizId(meetingId: string, quizNumber: number) {
-  void meetingId;
-  return `quiz-${quizNumber}`;
+  return `${meetingId}-${quizNumber}`;
 }
 
 export function sanitizeMeetingYear(value: number) {
@@ -183,9 +182,11 @@ export async function extractDominantColors(
 export async function renderThumbnailBlob({
   backgroundColor,
   centerImageUrl,
+  centerImageScale = 1,
 }: {
   backgroundColor: string;
   centerImageUrl: string | null;
+  centerImageScale?: number;
 }) {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
@@ -201,7 +202,8 @@ export async function renderThumbnailBlob({
 
   if (centerImageUrl) {
     const image = await loadImage(centerImageUrl);
-    const longestEdgeScale = 500 / Math.max(image.width, image.height);
+    const longestEdgeScale =
+      (500 * centerImageScale) / Math.max(image.width, image.height);
     const frameMaxWidth = canvas.width * 0.42;
     const frameMaxHeight = canvas.height * 0.52;
     const scale = Math.min(

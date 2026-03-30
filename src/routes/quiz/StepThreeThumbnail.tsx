@@ -1,27 +1,48 @@
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ProcessedImage, ThumbnailAsset } from "./types";
 import { sampleImageColorAt } from "./utils";
+
+function normalizeHexColor(value: string) {
+  const trimmed = value.trim();
+  const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(withHash)
+    ? withHash.toLowerCase()
+    : null;
+}
 
 export default function StepThreeThumbnail({
   processedImages,
   backgroundColor,
   dominantColors,
   centerImage,
+  centerImageScale,
   onBack,
   onNext,
   onBackgroundColorChange,
   onCenterImageSelect,
+  onCenterImageScaleChange,
 }: {
   processedImages: ProcessedImage[];
   backgroundColor: string;
   dominantColors: string[];
   centerImage: ThumbnailAsset | null;
+  centerImageScale: number;
   onBack: () => void;
   onNext: () => void;
   onBackgroundColorChange: (value: string) => void;
   onCenterImageSelect: (file: File) => void;
+  onCenterImageScaleChange: (value: number) => void;
 }) {
   const imageInputId = useId();
+  const [backgroundColorInput, setBackgroundColorInput] = useState(backgroundColor);
+  const colorPickImages = processedImages.slice(0, 2);
+  const previewFrameWidth = Math.min(centerImageScale * 42, 88);
+  const previewFrameHeight = Math.min(centerImageScale * 52, 84);
+
+  useEffect(() => {
+    setBackgroundColorInput(backgroundColor);
+  }, [backgroundColor]);
 
   return (
     <section className="mt-6 space-y-4">
@@ -47,11 +68,19 @@ export default function StepThreeThumbnail({
           >
             <div className="aspect-video flex items-center justify-center p-6">
               {centerImage ? (
-                <img
-                  src={centerImage.url}
-                  alt="썸네일 가운데 이미지"
-                  className="max-h-[500px] max-w-[500px] object-contain drop-shadow-[0_18px_32px_rgba(15,23,42,0.2)]"
-                />
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    width: `${previewFrameWidth}%`,
+                    height: `${previewFrameHeight}%`,
+                  }}
+                >
+                  <img
+                    src={centerImage.url}
+                    alt="썸네일 가운데 이미지"
+                    className="h-full w-full object-contain drop-shadow-[0_18px_32px_rgba(15,23,42,0.2)]"
+                  />
+                </div>
               ) : (
                 <div className="rounded-full border border-white/60 bg-white/40 px-4 py-2 text-sm font-medium text-slate-800 backdrop-blur-sm">
                   가운데 이미지를 업로드하거나 붙여넣기 하세요
@@ -78,10 +107,23 @@ export default function StepThreeThumbnail({
                 />
                 <input
                   type="text"
-                  value={backgroundColor}
-                  onChange={(event) =>
-                    onBackgroundColorChange(event.target.value)
-                  }
+                  value={backgroundColorInput}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setBackgroundColorInput(nextValue);
+
+                    const normalizedColor = normalizeHexColor(nextValue);
+                    if (normalizedColor) {
+                      onBackgroundColorChange(normalizedColor);
+                    }
+                  }}
+                  onBlur={() => {
+                    const normalizedColor = normalizeHexColor(
+                      backgroundColorInput
+                    );
+
+                    setBackgroundColorInput(normalizedColor ?? backgroundColor);
+                  }}
                   className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none"
                 />
               </div>
@@ -113,14 +155,17 @@ export default function StepThreeThumbnail({
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
                 PNG에서 직접 색상 선택
               </span>
-              <div className="grid grid-cols-2 gap-2">
-                {processedImages.slice(0, 6).map((image, index) => (
+              <div
+                className={`grid gap-3 ${
+                  colorPickImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                }`}
+              >
+                {colorPickImages.map((image, index) => (
                   <button
                     key={image.id}
                     type="button"
                     onClick={async (event) => {
-                      const rect =
-                        event.currentTarget.getBoundingClientRect();
+                      const rect = event.currentTarget.getBoundingClientRect();
                       const imageElement =
                         event.currentTarget.querySelector("img");
 
@@ -156,7 +201,9 @@ export default function StepThreeThumbnail({
                         0,
                         Math.min(
                           naturalWidth - 1,
-                          Math.round(((clickX - offsetX) / renderedWidth) * naturalWidth)
+                          Math.round(
+                            ((clickX - offsetX) / renderedWidth) * naturalWidth
+                          )
                         )
                       );
                       const imageY = Math.max(
@@ -164,7 +211,8 @@ export default function StepThreeThumbnail({
                         Math.min(
                           naturalHeight - 1,
                           Math.round(
-                            ((clickY - offsetY) / renderedHeight) * naturalHeight
+                            ((clickY - offsetY) / renderedHeight) *
+                              naturalHeight
                           )
                         )
                       );
@@ -178,7 +226,7 @@ export default function StepThreeThumbnail({
                     }}
                     className="overflow-hidden rounded-[1rem] border border-stone-200 bg-stone-50 text-left transition hover:border-stone-300 hover:bg-white"
                   >
-                    <div className="relative aspect-video bg-white">
+                    <div className="relative aspect-[4/3] bg-white">
                       <img
                         src={image.url}
                         alt={`${index + 1}번째 PNG`}
@@ -191,6 +239,9 @@ export default function StepThreeThumbnail({
                   </button>
                 ))}
               </div>
+              <p className="mt-2 text-[11px] leading-5 text-stone-500">
+                색 추출용으로 대표 PNG만 {colorPickImages.length}개 표시합니다.
+              </p>
             </div>
 
             <div>
@@ -227,18 +278,61 @@ export default function StepThreeThumbnail({
               ) : null}
             </div>
 
-            <div className="rounded-[1rem] border border-stone-200 bg-stone-50 p-3">
-              <p className="text-xs text-stone-500">
-                PNG 미리보기 안에서 원하는 지점을 클릭하면 그 픽셀 색을 바로
-                배경색으로 가져옵니다.
-              </p>
-              <p className="mt-1 text-xs text-stone-500">
-                위의 추천 팔레트는 PNG에서 많이 쓰인 색을 기준으로 정리합니다.
-              </p>
-              <p className="mt-1 text-xs text-stone-500">
-                총 {processedImages.length}장의 PNG를 기준으로 썸네일을 설정하고
-                있습니다.
-              </p>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <span className="block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                  가운데 이미지 크기
+                </span>
+                <span className="text-xs font-semibold text-slate-700">
+                  {Math.round(centerImageScale * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.05"
+                value={centerImageScale}
+                onChange={(event) =>
+                  onCenterImageScaleChange(Number(event.target.value))
+                }
+                className="w-full accent-slate-900"
+                disabled={!centerImage}
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onCenterImageScaleChange(
+                      Math.max(0.5, Number((centerImageScale - 0.1).toFixed(2)))
+                    )
+                  }
+                  className="inline-flex flex-1 items-center justify-center rounded-[0.9rem] border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!centerImage}
+                >
+                  작게
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCenterImageScaleChange(1)}
+                  className="inline-flex flex-1 items-center justify-center rounded-[0.9rem] border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!centerImage}
+                >
+                  기본
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onCenterImageScaleChange(
+                      Math.min(2, Number((centerImageScale + 0.1).toFixed(2)))
+                    )
+                  }
+                  className="inline-flex flex-1 items-center justify-center rounded-[0.9rem] border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!centerImage}
+                >
+                  크게
+                </button>
+              </div>
             </div>
 
             <div className="flex gap-2 pt-1">

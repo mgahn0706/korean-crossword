@@ -69,6 +69,8 @@ export default function QuizPage() {
   >([]);
   const [thumbnailCenterImage, setThumbnailCenterImage] =
     useState<ThumbnailAsset | null>(null);
+  const [thumbnailCenterImageScale, setThumbnailCenterImageScale] =
+    useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
 
@@ -214,6 +216,7 @@ export default function QuizPage() {
       URL.revokeObjectURL(thumbnailCenterImage.url);
     }
     setThumbnailCenterImage(null);
+    setThumbnailCenterImageScale(1);
     setIsExporting(false);
     setExportStatus("");
   };
@@ -378,7 +381,9 @@ export default function QuizPage() {
     currentQuizImageId && meetingInfo.id.trim() !== ""
       ? buildQuizId(meetingInfo.id, activeQuizIndex + 1)
       : "";
-  const currentQuizImageSource = currentQuizImage?.file.name ?? "";
+  const currentQuizImageSource = currentQuizId
+    ? `/image/quiz/${currentQuizId}.png`
+    : "";
 
   const updateCurrentQuizMetadata = (
     field: keyof QuizMetadata,
@@ -425,7 +430,7 @@ export default function QuizPage() {
       quizNumber: index + 1,
       title: metadata.title.trim(),
       creators: metadata.creators,
-      quizImageSource: `quizImages/${meetingInfo.id}-${quizId}.png`,
+      quizImageSource: `/image/quiz/${quizId}.png`,
       answer: metadata.answer.trim() === "" ? null : metadata.answer.trim(),
       tags: metadata.tags,
     };
@@ -446,9 +451,10 @@ export default function QuizPage() {
 
     try {
       const zip = new JSZip();
-      const quizImagesFolder = zip.folder("quizImages");
+      const quizImagesFolder = zip.folder("image/quiz");
+      const meetingImagesFolder = zip.folder("image/quiz/meeting");
 
-      if (!quizImagesFolder) {
+      if (!quizImagesFolder || !meetingImagesFolder) {
         throw new Error("ZIP 폴더를 생성할 수 없습니다.");
       }
 
@@ -462,31 +468,36 @@ export default function QuizPage() {
 
         if (quizImage) {
           quizImagesFolder.file(
-            `${meetingInfo.id}-${quiz.id}.png`,
+            `${quiz.id}.png`,
             await quizImage.file.arrayBuffer()
           );
         }
 
         if (answerImage) {
           quizImagesFolder.file(
-            `${meetingInfo.id}-${quiz.id}-answer.png`,
+            `${quiz.id}-answer.png`,
             await answerImage.file.arrayBuffer()
           );
         }
       }
 
-      const meetingExport: MeetingType = {
+      const meetingExport: Record<string, MeetingType> = {
+        [meetingInfo.id]: {
         ...meetingInfo,
-        imageSource: thumbnailCenterImage ? "thumbnail.png" : "",
+          imageSource: thumbnailCenterImage
+            ? `/image/quiz/meeting/${meetingInfo.id}.png`
+            : "",
         quizIds: quizData.map((quiz) => quiz.id),
+        },
       };
 
       if (thumbnailCenterImage) {
         const thumbnailBlob = await renderThumbnailBlob({
           backgroundColor: thumbnailBackgroundColor,
           centerImageUrl: thumbnailCenterImage.url,
+          centerImageScale: thumbnailCenterImageScale,
         });
-        zip.file("thumbnail.png", thumbnailBlob);
+        meetingImagesFolder.file(`${meetingInfo.id}.png`, thumbnailBlob);
       }
 
       zip.file("quizData.json", JSON.stringify(quizData, null, 2));
@@ -558,10 +569,12 @@ export default function QuizPage() {
             backgroundColor={thumbnailBackgroundColor}
             dominantColors={thumbnailDominantColors}
             centerImage={thumbnailCenterImage}
+            centerImageScale={thumbnailCenterImageScale}
             onBack={() => setStep(2)}
             onNext={() => setStep(4)}
             onBackgroundColorChange={setThumbnailBackgroundColor}
             onCenterImageSelect={setThumbnailCenterImageFromFile}
+            onCenterImageScaleChange={setThumbnailCenterImageScale}
           />
         ) : step === 4 ? (
           <StepThreeOrdering
