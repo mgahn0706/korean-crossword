@@ -21,14 +21,14 @@ const GROUP_COLORS = [
     text: "text-[#244322]",
   },
   {
-    label: "도전",
+    label: "어려움",
     accent: "bg-[#96c4ed]",
     panel: "bg-[#b4d8f4]",
     border: "border-[#7fb4de]",
     text: "text-[#173d5d]",
   },
   {
-    label: "어려움",
+    label: "매우 어려움",
     accent: "bg-[#b39ae6]",
     panel: "bg-[#cab8f1]",
     border: "border-[#9e86d3]",
@@ -91,16 +91,17 @@ function RuleModal({
           </p>
           <p>
             이 빌더는 플레이 화면이 아니라 제작 화면입니다. 노랑, 초록, 파랑,
-            보라 각 행에 카테고리와 4개 단어를 함께 적어 퍼즐 구조를 바로
-            조립할 수 있습니다.
+            보라 각 행에 카테고리와 4개 단어를 함께 적어 퍼즐 구조를 바로 조립할
+            수 있습니다.
           </p>
           <p>
-            예시: 버스, 지하철, 택시, 자전거 → 교통수단 / 사랑, 슬픔, 기쁨,
-            분노 → 감정
+            예시: 버스, 지하철, 택시, 자전거 → 교통수단 / 사랑, 슬픔, 기쁨, 분노
+            → 감정
           </p>
           <p>
-            그룹 난이도는 노랑, 초록, 파랑, 보라 순서로 정리했습니다. 더 헷갈리는
-            그룹일수록 아래쪽 색을 쓰는 식으로 배치하면 검토가 편합니다.
+            그룹 난이도는 노랑, 초록, 파랑, 보라 순서로 정리했습니다. 더
+            헷갈리는 그룹일수록 아래쪽 색을 쓰는 식으로 배치하면 검토가
+            편합니다.
           </p>
         </div>
       </div>
@@ -212,7 +213,9 @@ export default function ConnectionsPage() {
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-              <span className="font-semibold text-slate-900">{filledCount}</span>
+              <span className="font-semibold text-slate-900">
+                {filledCount}
+              </span>
               /16 입력됨
             </div>
           </div>
