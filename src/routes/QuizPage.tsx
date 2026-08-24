@@ -2,7 +2,11 @@ import JSZip from "jszip";
 import { useEffect, useId, useState } from "react";
 import LinkButton from "./LinkButton";
 import { ROUTES } from "./config";
-import { DEFAULT_MEETING_CATEGORY, EMPTY_MEETING } from "./quiz/constants";
+import {
+  DEFAULT_MEETING_CATEGORY,
+  DEFAULT_MEETING_SEASON,
+  EMPTY_MEETING,
+} from "./quiz/constants";
 import { renderPdfToImages } from "./quiz/pdf";
 import StepFourMetadata from "./quiz/StepFourMetadata";
 import StepFiveExport from "./quiz/StepFiveExport";
@@ -14,6 +18,7 @@ import QuizStepper from "./quiz/QuizStepper";
 import type {
   DragRow,
   MeetingCategory,
+  MeetingSeason,
   MeetingType,
   ProcessedImage,
   QuizMetadata,
@@ -51,6 +56,9 @@ export default function QuizPage() {
     DEFAULT_MEETING_CATEGORY
   );
   const [meetingSequence, setMeetingSequence] = useState(1);
+  const [meetingSeason, setMeetingSeason] = useState<MeetingSeason>(
+    DEFAULT_MEETING_SEASON
+  );
   const [removedImageIds, setRemovedImageIds] = useState<string[]>([]);
   const [quizImageIds, setQuizImageIds] = useState<string[]>([]);
   const [answerImageIds, setAnswerImageIds] = useState<string[]>([]);
@@ -95,7 +103,8 @@ export default function QuizPage() {
         meetingCategory,
         current.date.year,
         current.date.month,
-        meetingSequence
+        meetingSequence,
+        meetingSeason
       ),
     }));
   }, [
@@ -103,6 +112,7 @@ export default function QuizPage() {
     meetingSequence,
     meetingInfo.date.year,
     meetingInfo.date.month,
+    meetingSeason,
   ]);
 
   useEffect(() => {
@@ -202,6 +212,7 @@ export default function QuizPage() {
     setMeetingInfo(EMPTY_MEETING);
     setMeetingCategory(DEFAULT_MEETING_CATEGORY);
     setMeetingSequence(1);
+    setMeetingSeason(DEFAULT_MEETING_SEASON);
     setRemovedImageIds([]);
     setQuizImageIds([]);
     setAnswerImageIds([]);
@@ -556,9 +567,11 @@ export default function QuizPage() {
             errorText={errorText}
             meetingInfo={meetingInfo}
             meetingCategory={meetingCategory}
+            meetingSeason={meetingSeason}
             isMeetingConfigComplete={isMeetingConfigComplete}
             onReset={resetSelection}
             onMeetingCategoryChange={setMeetingCategory}
+            onMeetingSeasonChange={setMeetingSeason}
             onMeetingInfoChange={updateMeetingInfo}
             onMeetingDateChange={updateMeetingDate}
             onNext={() => setStep(3)}

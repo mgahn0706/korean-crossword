@@ -1,6 +1,7 @@
 import { EMPTY_MEETING } from "./constants";
 import type {
   MeetingCategory,
+  MeetingSeason,
   ProcessedImage,
   QuizMetadata,
 } from "./types";
@@ -9,7 +10,8 @@ export function formatMeetingId(
   category: MeetingCategory,
   year: number,
   month: number,
-  sequence: number
+  sequence: number,
+  season: MeetingSeason = "봄"
 ) {
   const monthText = String(month);
 
@@ -21,9 +23,22 @@ export function formatMeetingId(
     case "미니정모":
       return `${year}-${monthText}-mini`;
     case "대이동":
-      return `${year}-MOVE-${sequence}`;
+      return `${year}-MT-${formatMeetingSeason(season)}-${sequence}`;
     default:
       return `${year}-${monthText}`;
+  }
+}
+
+export function formatMeetingSeason(season: MeetingSeason) {
+  switch (season) {
+    case "봄":
+      return "SPRING";
+    case "여름":
+      return "SUMMER";
+    case "가을":
+      return "AUTUMN";
+    case "겨울":
+      return "WINTER";
   }
 }
 

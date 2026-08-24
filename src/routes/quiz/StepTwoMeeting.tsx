@@ -2,6 +2,7 @@ import { EMPTY_MEETING } from "./constants";
 import { sanitizeMeetingMonth, sanitizeMeetingYear } from "./utils";
 import type {
   MeetingCategory,
+  MeetingSeason,
   MeetingType,
   ProcessedImage,
   UploadMode,
@@ -16,9 +17,11 @@ export default function StepTwoMeeting({
   errorText,
   meetingInfo,
   meetingCategory,
+  meetingSeason,
   isMeetingConfigComplete,
   onReset,
   onMeetingCategoryChange,
+  onMeetingSeasonChange,
   onMeetingInfoChange,
   onMeetingDateChange,
   onNext,
@@ -31,9 +34,11 @@ export default function StepTwoMeeting({
   errorText: string;
   meetingInfo: MeetingType;
   meetingCategory: MeetingCategory;
+  meetingSeason: MeetingSeason;
   isMeetingConfigComplete: boolean;
   onReset: () => void;
   onMeetingCategoryChange: (value: MeetingCategory) => void;
+  onMeetingSeasonChange: (value: MeetingSeason) => void;
   onMeetingInfoChange: (field: keyof MeetingType, value: string | string[]) => void;
   onMeetingDateChange: (field: keyof MeetingType["date"], value: number) => void;
   onNext: () => void;
@@ -205,26 +210,46 @@ export default function StepTwoMeeting({
               />
             </label>
 
-            <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                월 <span className="text-rose-500">*</span>
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={12}
-                value={meetingInfo.date.month}
-                onChange={(event) =>
-                  onMeetingDateChange(
-                    "month",
-                    sanitizeMeetingMonth(
-                      Number(event.target.value) || EMPTY_MEETING.date.month
+            {meetingCategory === "대이동" ? (
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                  계절 <span className="text-rose-500">*</span>
+                </span>
+                <select
+                  value={meetingSeason}
+                  onChange={(event) =>
+                    onMeetingSeasonChange(event.target.value as MeetingSeason)
+                  }
+                  className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
+                >
+                  <option value="봄">봄</option>
+                  <option value="여름">여름</option>
+                  <option value="가을">가을</option>
+                  <option value="겨울">겨울</option>
+                </select>
+              </label>
+            ) : (
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                  월 <span className="text-rose-500">*</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={meetingInfo.date.month}
+                  onChange={(event) =>
+                    onMeetingDateChange(
+                      "month",
+                      sanitizeMeetingMonth(
+                        Number(event.target.value) || EMPTY_MEETING.date.month
+                      )
                     )
-                  )
-                }
-                className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
-              />
-            </label>
+                  }
+                  className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
+                />
+              </label>
+            )}
 
             <button
               type="button"

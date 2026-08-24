@@ -1,6 +1,7 @@
 export type UploadMode = "pdf" | "png" | null;
 export type Step = 1 | 2 | 3 | 4 | 5 | 6;
 export type MeetingCategory = "정기모임" | "OT" | "미니정모" | "대이동";
+export type MeetingSeason = "봄" | "여름" | "가을" | "겨울";
 export type SelectionRow = "quiz" | "answer";
 export type DragRow = SelectionRow | "all";
 

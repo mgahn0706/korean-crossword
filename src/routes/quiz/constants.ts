@@ -1,4 +1,4 @@
-import type { MeetingCategory, MeetingType, Tags } from "./types";
+import type { MeetingCategory, MeetingSeason, MeetingType, Tags } from "./types";
 
 export const QUIZ_TAG_KOREAN_NAME: Record<Tags, string> = {
   EASY: "쉬움",
@@ -33,3 +33,4 @@ export const EMPTY_MEETING: MeetingType = {
 };
 
 export const DEFAULT_MEETING_CATEGORY: MeetingCategory = "정기모임";
+export const DEFAULT_MEETING_SEASON: MeetingSeason = "봄";
