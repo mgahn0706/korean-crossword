@@ -23,7 +23,7 @@ export function formatMeetingId(
     case "미니정모":
       return `${year}-${monthText}-mini`;
     case "대이동":
-      return `${year}-MT-${formatMeetingSeason(season)}-${sequence}`;
+      return `${year}-ADVENTURE-${formatMeetingSeason(season)}-${sequence}`;
     default:
       return `${year}-${monthText}`;
   }

@@ -1,6 +1,7 @@
 import { QUIZ_TAGS, QUIZ_TAG_KOREAN_NAME } from "./constants";
 import { QUIZ_TAG_DESCRIPTION } from "./tagDescriptions";
 import type { ProcessedImage, QuizMetadata, Tags } from "./types";
+import StepNavigation from "./StepNavigation";
 
 export default function StepFourMetadata({
   totalQuizItems,
@@ -260,25 +261,15 @@ export default function StepFourMetadata({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex items-center rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white"
-              >
-                순서 설정으로 돌아가기
-              </button>
-              <button
-                type="button"
-                onClick={onNext}
-                className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-              >
-                내보내기 확인
-              </button>
-            </div>
           </div>
         </aside>
       </section>
+
+      <StepNavigation
+        onBack={onBack}
+        onNext={onNext}
+        nextLabel="내보내기 확인"
+      />
     </section>
   );
 }

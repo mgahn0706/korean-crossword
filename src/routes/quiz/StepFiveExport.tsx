@@ -1,4 +1,5 @@
 import type { MeetingType, QuizType } from "./types";
+import StepNavigation from "./StepNavigation";
 
 export default function StepFiveExport({
   meetingInfo,
@@ -78,24 +79,6 @@ export default function StepFiveExport({
               </div>
             </dl>
 
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={onDownload}
-                disabled={isExporting || quizData.length === 0}
-                className="inline-flex items-center justify-center rounded-[1rem] bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-300"
-              >
-                {isExporting ? "ZIP 생성 중..." : "ZIP 다운로드"}
-              </button>
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex items-center justify-center rounded-[1rem] border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50"
-              >
-                메타데이터로 돌아가기
-              </button>
-            </div>
-
             <div className="mt-3 rounded-[1rem] border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-medium text-amber-900">
               이 압축파일을 문제팀 톡방에 공유해주세요!
             </div>
@@ -106,6 +89,13 @@ export default function StepFiveExport({
           </div>
         </div>
       </section>
+
+      <StepNavigation
+        onBack={onBack}
+        onNext={onDownload}
+        nextLabel={isExporting ? "ZIP 생성 중..." : "ZIP 다운로드"}
+        nextDisabled={isExporting || quizData.length === 0}
+      />
     </section>
   );
 }

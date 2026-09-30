@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import StepNavigation from "./StepNavigation";
 import type {
   DragRow,
   ProcessedImage,
@@ -12,11 +13,9 @@ export default function StepThreeOrdering({
   removedImageIds,
   quizImageIds,
   answerImageIds,
-  activeSelectionRow,
   onBack,
   onReset,
-  onSelectRow,
-  onAppendToActiveRow,
+  onAppendToRow,
   onToggleRemovedImage,
   onRemoveFromSelectionRow,
   onDragStart,
@@ -28,11 +27,9 @@ export default function StepThreeOrdering({
   removedImageIds: string[];
   quizImageIds: string[];
   answerImageIds: string[];
-  activeSelectionRow: SelectionRow;
   onBack: () => void;
   onReset: () => void;
-  onSelectRow: (row: SelectionRow) => void;
-  onAppendToActiveRow: (imageId: string) => void;
+  onAppendToRow: (row: SelectionRow, imageId: string) => void;
   onToggleRemovedImage: (imageId: string) => void;
   onRemoveFromSelectionRow: (row: SelectionRow, imageId: string) => void;
   onDragStart: (imageId: string, row: DragRow) => void;
@@ -47,6 +44,25 @@ export default function StepThreeOrdering({
   ];
   const [dragOverRow, setDragOverRow] = useState<SelectionRow | null>(null);
   const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [previewImageId, setPreviewImageId] = useState<string | null>(null);
+  const previewImage = processedImages.find(
+    (image) => image.id === previewImageId
+  );
+
+  useEffect(() => {
+    if (!previewImageId) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPreviewImageId(null);
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [previewImageId]);
 
   return (
     <section className="mt-6 space-y-6">
@@ -60,18 +76,11 @@ export default function StepThreeOrdering({
               최종 PNG 순서 설정
             </h2>
             <p className="mt-2 text-sm leading-6 text-stone-600">
-              세 row 모두 같은 방식으로 동작합니다. 위 두 row는 최종 결과이고,
-              아래 전체 PNG는 원본 풀입니다.
+              아래 원본 슬라이드를 크게 확인한 뒤 퀴즈 또는 정답으로 바로
+              추가하세요. 선택된 슬라이드는 드래그해서 순서를 바꿀 수 있습니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex items-center rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-white"
-            >
-              이전 단계로
-            </button>
             <button
               type="button"
               onClick={onReset}
@@ -89,15 +98,8 @@ export default function StepThreeOrdering({
               className={`rounded-[1.5rem] border p-4 transition ${
                 dragOverRow === rowKey
                   ? "border-sky-400 bg-sky-50/70"
-                  : activeSelectionRow === rowKey
-                    ? "border-slate-900 bg-slate-50"
-                    : "border-stone-200 bg-stone-50/60"
+                  : "border-stone-200 bg-stone-50/60"
               }`}
-              onClick={() => {
-                if (rowKey !== "all") {
-                  onSelectRow(rowKey);
-                }
-              }}
               onDragEnter={() => {
                 if (rowKey !== "all") {
                   setDragOverRow(rowKey);
@@ -137,26 +139,18 @@ export default function StepThreeOrdering({
                   </p>
                   <p className="mt-1 text-xs text-stone-500">
                     {rowKey === "all"
-                      ? "현재 선택된 row로 추가하거나, 선택 row로 드래그할 수 있습니다."
-                      : activeSelectionRow === rowKey
-                        ? "현재 선택된 row입니다. 아래 원본 PNG를 클릭하면 이 row에 추가됩니다."
-                        : "이 row를 선택하면 아래 원본 PNG를 이 row로 보낼 수 있습니다."}
+                      ? "슬라이드를 크게 확인한 뒤 퀴즈 또는 정답 버튼으로 바로 추가하세요."
+                      : "드래그해서 순서를 바꾸거나 다른 row로 옮길 수 있습니다."}
                   </p>
                 </div>
                 <div
                   className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ${
-                    rowKey === "all"
-                      ? "border border-stone-200 bg-white text-slate-700"
-                      : activeSelectionRow === rowKey
-                        ? "bg-slate-900 text-white"
-                        : "border border-stone-200 bg-white text-slate-700"
+                    "border border-stone-200 bg-white text-slate-700"
                   }`}
                 >
                   {rowKey === "all"
                     ? `원본 PNG ${processedImages.length}장`
-                    : activeSelectionRow === rowKey
-                      ? "선택됨"
-                      : "클릭해서 선택"}
+                    : `${rowItems.length}장 선택됨`}
                 </div>
               </div>
 
@@ -172,7 +166,13 @@ export default function StepThreeOrdering({
                     아직 선택된 이미지가 없습니다.
                   </div>
                 ) : (
-                  <div className="flex gap-2 overflow-x-auto pb-1">
+                  <div
+                    className={
+                      rowKey === "all"
+                        ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                        : "flex gap-2 overflow-x-auto pb-1"
+                    }
+                  >
                     {rowItems.map((imageId, index) => {
                       const image = processedImages.find(
                         (item) => item.id === imageId
@@ -187,18 +187,14 @@ export default function StepThreeOrdering({
                       return (
                         <div
                           key={`${rowKey}-${image.id}`}
-                          className="relative shrink-0"
+                          className={rowKey === "all" ? "relative min-w-0" : "relative shrink-0"}
                         >
                           {dragOverRow === rowKey && dragOverTargetId === image.id ? (
                             <div className="absolute -left-1 top-2 bottom-2 z-20 w-1 rounded-full bg-sky-500 shadow-[0_0_0_3px_rgba(186,230,253,0.9)]" />
                           ) : null}
                           <div
                             draggable={!isRemoved}
-                            onClick={() => {
-                              if (rowKey === "all" && !isRemoved) {
-                                onAppendToActiveRow(image.id);
-                              }
-                            }}
+                            onClick={() => setPreviewImageId(image.id)}
                             onDragStart={() => {
                               if (isRemoved) {
                                 return;
@@ -226,11 +222,11 @@ export default function StepThreeOrdering({
                               setDragOverRow(null);
                               setDragOverTargetId(null);
                             }}
-                            className={`w-40 overflow-hidden rounded-[0.9rem] border bg-stone-50 transition ${
+                            className={`${rowKey === "all" ? "w-full" : "w-64 sm:w-72"} overflow-hidden rounded-[0.9rem] border bg-stone-50 transition ${
                               isRemoved
                                 ? "cursor-default border-stone-200"
                                 : "cursor-pointer border-stone-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)] active:cursor-grabbing"
-                            } ${rowKey === "all" ? (isRemoved ? "" : "cursor-copy") : "cursor-grab"} ${
+                            } ${rowKey === "all" ? (isRemoved ? "" : "cursor-zoom-in") : "cursor-grab"} ${
                               dragOverRow === rowKey && dragOverTargetId === image.id
                                 ? "border-sky-400 shadow-[0_0_0_2px_rgba(125,211,252,0.7)]"
                                 : ""
@@ -262,6 +258,17 @@ export default function StepThreeOrdering({
                               >
                                 {rowKey === "all" && isRemoved ? "↺" : "×"}
                               </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPreviewImageId(image.id);
+                                }}
+                                className="absolute bottom-2 right-2 z-10 inline-flex items-center justify-center rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white"
+                                aria-label={`${image.file.name} 크게 보기`}
+                              >
+                                크게 보기
+                              </button>
                               <span className="absolute left-2 top-2 inline-flex items-center justify-center rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-md">
                                 {rowKey === "quiz"
                                   ? `${index + 1}번 문제 이미지`
@@ -287,6 +294,32 @@ export default function StepThreeOrdering({
                               >
                                 {image.file.name}
                               </p>
+                              {rowKey === "all" ? (
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onAppendToRow("quiz", image.id);
+                                    }}
+                                    disabled={isRemoved || quizImageIds.includes(image.id)}
+                                    className="inline-flex min-h-9 items-center justify-center rounded-[0.75rem] bg-slate-900 px-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
+                                  >
+                                    {quizImageIds.includes(image.id) ? "퀴즈에 추가됨" : "퀴즈에 추가"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      onAppendToRow("answer", image.id);
+                                    }}
+                                    disabled={isRemoved || answerImageIds.includes(image.id)}
+                                    className="inline-flex min-h-9 items-center justify-center rounded-[0.75rem] border border-stone-300 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+                                  >
+                                    {answerImageIds.includes(image.id) ? "정답에 추가됨" : "정답에 추가"}
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -300,16 +333,77 @@ export default function StepThreeOrdering({
         </div>
       </section>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={quizImageIds.length === 0}
-          className="inline-flex items-center justify-center rounded-[1.25rem] bg-slate-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-300"
+      <StepNavigation
+        onBack={onBack}
+        onNext={onNext}
+        nextLabel="메타데이터 편집으로"
+        nextDisabled={quizImageIds.length === 0}
+      />
+
+      {previewImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="슬라이드 크게 보기"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setPreviewImageId(null);
+            }
+          }}
         >
-          메타데이터 편집으로
-        </button>
-      </div>
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-stone-200 px-4 py-3 sm:px-5">
+              <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                {previewImage.file.name}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPreviewImageId(null)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-xl text-slate-700 transition hover:bg-stone-50"
+                aria-label="미리보기 닫기"
+              >
+                ×
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 bg-stone-100 p-3 sm:p-5">
+              <img
+                src={previewImage.url}
+                alt={`${previewImage.file.name} 크게 보기`}
+                className="h-full max-h-[78vh] w-full object-contain"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 border-t border-stone-200 p-3 sm:ml-auto sm:flex sm:w-auto sm:min-w-[24rem] sm:p-4">
+              <button
+                type="button"
+                onClick={() => onAppendToRow("quiz", previewImage.id)}
+                disabled={
+                  removedImageIds.includes(previewImage.id) ||
+                  quizImageIds.includes(previewImage.id)
+                }
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[0.9rem] bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
+              >
+                {quizImageIds.includes(previewImage.id)
+                  ? "퀴즈에 추가됨"
+                  : "퀴즈에 추가"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onAppendToRow("answer", previewImage.id)}
+                disabled={
+                  removedImageIds.includes(previewImage.id) ||
+                  answerImageIds.includes(previewImage.id)
+                }
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[0.9rem] border border-stone-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+              >
+                {answerImageIds.includes(previewImage.id)
+                  ? "정답에 추가됨"
+                  : "정답에 추가"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

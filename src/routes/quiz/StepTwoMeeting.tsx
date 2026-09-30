@@ -1,4 +1,5 @@
 import { EMPTY_MEETING } from "./constants";
+import StepNavigation from "./StepNavigation";
 import { sanitizeMeetingMonth, sanitizeMeetingYear } from "./utils";
 import type {
   MeetingCategory,
@@ -18,12 +19,14 @@ export default function StepTwoMeeting({
   meetingInfo,
   meetingCategory,
   meetingSeason,
+  isMeetingIdManual,
   isMeetingConfigComplete,
   onReset,
   onMeetingCategoryChange,
   onMeetingSeasonChange,
   onMeetingInfoChange,
   onMeetingDateChange,
+  onUseAutomaticMeetingId,
   onNext,
 }: {
   uploadMode: UploadMode;
@@ -35,12 +38,14 @@ export default function StepTwoMeeting({
   meetingInfo: MeetingType;
   meetingCategory: MeetingCategory;
   meetingSeason: MeetingSeason;
+  isMeetingIdManual: boolean;
   isMeetingConfigComplete: boolean;
   onReset: () => void;
   onMeetingCategoryChange: (value: MeetingCategory) => void;
   onMeetingSeasonChange: (value: MeetingSeason) => void;
   onMeetingInfoChange: (field: keyof MeetingType, value: string | string[]) => void;
   onMeetingDateChange: (field: keyof MeetingType["date"], value: number) => void;
+  onUseAutomaticMeetingId: () => void;
   onNext: () => void;
 }) {
   return (
@@ -150,14 +155,37 @@ export default function StepTwoMeeting({
               </select>
             </label>
 
-            <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                생성된 ID <span className="text-rose-500">*</span>
-              </span>
-              <div className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-100 px-4 py-3 text-base font-medium text-slate-900">
-                {meetingInfo.id}
+            <div>
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                  모임 ID <span className="text-rose-500">*</span>
+                </span>
+                <input
+                  type="text"
+                  value={meetingInfo.id}
+                  onChange={(event) =>
+                    onMeetingInfoChange("id", event.target.value)
+                  }
+                  spellCheck={false}
+                  className="w-full rounded-[1.25rem] border border-stone-200 bg-stone-50 px-4 py-3 text-base font-medium text-slate-900 outline-none transition focus:border-stone-400 focus:bg-white"
+                />
+              </label>
+              <div className="mt-2 flex items-start justify-between gap-3 text-[11px] leading-5 text-stone-500">
+                <p>
+                  날짜를 기준으로 자동 생성됩니다. 실제 개최 월과 회차 기준 월이
+                  다르면 ID를 직접 수정할 수 있습니다.
+                </p>
+                {isMeetingIdManual ? (
+                  <button
+                    type="button"
+                    onClick={onUseAutomaticMeetingId}
+                    className="shrink-0 rounded-full border border-stone-200 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50"
+                  >
+                    자동 ID 사용
+                  </button>
+                ) : null}
               </div>
-            </label>
+            </div>
 
             <label className="block">
               <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
@@ -191,7 +219,7 @@ export default function StepTwoMeeting({
 
             <label className="block">
               <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                연도 <span className="text-rose-500">*</span>
+                개최 연도 <span className="text-rose-500">*</span>
               </span>
               <input
                 type="number"
@@ -231,7 +259,7 @@ export default function StepTwoMeeting({
             ) : (
               <label className="block">
                 <span className="mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-                  월 <span className="text-rose-500">*</span>
+                  개최 월 <span className="text-rose-500">*</span>
                 </span>
                 <input
                   type="number"
@@ -251,18 +279,6 @@ export default function StepTwoMeeting({
               </label>
             )}
 
-            <button
-              type="button"
-              onClick={onNext}
-              disabled={
-                isProcessing ||
-                processedImages.length === 0 ||
-                !isMeetingConfigComplete
-              }
-              className="inline-flex items-center justify-center rounded-[1.25rem] bg-slate-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-300"
-            >
-              다음 단계로
-            </button>
           </div>
         </aside>
       </section>
@@ -303,6 +319,18 @@ export default function StepTwoMeeting({
           </div>
         ) : null}
       </section>
+
+      <StepNavigation
+        onBack={onReset}
+        backLabel="업로드로"
+        onNext={onNext}
+        nextLabel="썸네일 설정으로"
+        nextDisabled={
+          isProcessing ||
+          processedImages.length === 0 ||
+          !isMeetingConfigComplete
+        }
+      />
     </section>
   );
 }

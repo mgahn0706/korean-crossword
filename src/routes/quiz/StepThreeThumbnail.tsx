@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import type { ProcessedImage, ThumbnailAsset } from "./types";
 import { sampleImageColorAt } from "./utils";
+import StepNavigation from "./StepNavigation";
 
 function normalizeHexColor(value: string) {
   const trimmed = value.trim();
@@ -335,25 +336,15 @@ export default function StepThreeThumbnail({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onBack}
-                className="inline-flex flex-1 items-center justify-center rounded-[1rem] border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50"
-              >
-                이전
-              </button>
-              <button
-                type="button"
-                onClick={onNext}
-                className="inline-flex flex-1 items-center justify-center rounded-[1rem] bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                다음
-              </button>
-            </div>
           </div>
         </aside>
       </section>
+
+      <StepNavigation
+        onBack={onBack}
+        onNext={onNext}
+        nextLabel="순서 설정으로"
+      />
     </section>
   );
 }

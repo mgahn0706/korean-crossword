@@ -59,11 +59,10 @@ export default function QuizPage() {
   const [meetingSeason, setMeetingSeason] = useState<MeetingSeason>(
     DEFAULT_MEETING_SEASON
   );
+  const [isMeetingIdManual, setIsMeetingIdManual] = useState(false);
   const [removedImageIds, setRemovedImageIds] = useState<string[]>([]);
   const [quizImageIds, setQuizImageIds] = useState<string[]>([]);
   const [answerImageIds, setAnswerImageIds] = useState<string[]>([]);
-  const [activeSelectionRow, setActiveSelectionRow] =
-    useState<SelectionRow>("quiz");
   const [draggedImageId, setDraggedImageId] = useState<string | null>(null);
   const [draggedFromRow, setDraggedFromRow] = useState<DragRow | null>(null);
   const [activeQuizIndex, setActiveQuizIndex] = useState(0);
@@ -97,6 +96,10 @@ export default function QuizPage() {
   }, [thumbnailCenterImage]);
 
   useEffect(() => {
+    if (isMeetingIdManual) {
+      return;
+    }
+
     setMeetingInfo((current) => ({
       ...current,
       id: formatMeetingId(
@@ -113,6 +116,7 @@ export default function QuizPage() {
     meetingInfo.date.year,
     meetingInfo.date.month,
     meetingSeason,
+    isMeetingIdManual,
   ]);
 
   useEffect(() => {
@@ -213,10 +217,10 @@ export default function QuizPage() {
     setMeetingCategory(DEFAULT_MEETING_CATEGORY);
     setMeetingSequence(1);
     setMeetingSeason(DEFAULT_MEETING_SEASON);
+    setIsMeetingIdManual(false);
     setRemovedImageIds([]);
     setQuizImageIds([]);
     setAnswerImageIds([]);
-    setActiveSelectionRow("quiz");
     setDraggedImageId(null);
     setDraggedFromRow(null);
     setActiveQuizIndex(0);
@@ -236,9 +240,27 @@ export default function QuizPage() {
     field: keyof MeetingType,
     value: string | string[]
   ) => {
+    if (field === "id") {
+      setIsMeetingIdManual(true);
+    }
+
     setMeetingInfo((current) => ({
       ...current,
       [field]: value,
+    }));
+  };
+
+  const useAutomaticMeetingId = () => {
+    setIsMeetingIdManual(false);
+    setMeetingInfo((current) => ({
+      ...current,
+      id: formatMeetingId(
+        meetingCategory,
+        current.date.year,
+        current.date.month,
+        meetingSequence,
+        meetingSeason
+      ),
     }));
   };
 
@@ -568,12 +590,14 @@ export default function QuizPage() {
             meetingInfo={meetingInfo}
             meetingCategory={meetingCategory}
             meetingSeason={meetingSeason}
+            isMeetingIdManual={isMeetingIdManual}
             isMeetingConfigComplete={isMeetingConfigComplete}
             onReset={resetSelection}
             onMeetingCategoryChange={setMeetingCategory}
             onMeetingSeasonChange={setMeetingSeason}
             onMeetingInfoChange={updateMeetingInfo}
             onMeetingDateChange={updateMeetingDate}
+            onUseAutomaticMeetingId={useAutomaticMeetingId}
             onNext={() => setStep(3)}
           />
         ) : step === 3 ? (
@@ -595,13 +619,9 @@ export default function QuizPage() {
             removedImageIds={removedImageIds}
             quizImageIds={quizImageIds}
             answerImageIds={answerImageIds}
-            activeSelectionRow={activeSelectionRow}
             onBack={() => setStep(3)}
             onReset={resetSelection}
-            onSelectRow={setActiveSelectionRow}
-            onAppendToActiveRow={(imageId) =>
-              appendToSelectionRow(activeSelectionRow, imageId)
-            }
+            onAppendToRow={appendToSelectionRow}
             onToggleRemovedImage={toggleRemovedImage}
             onRemoveFromSelectionRow={removeFromSelectionRow}
             onDragStart={(imageId, row) => {
