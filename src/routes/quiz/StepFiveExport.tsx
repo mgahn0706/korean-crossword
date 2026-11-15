@@ -13,7 +13,7 @@ export default function StepFiveExport({
 }: {
   meetingInfo: MeetingType;
   quizData: QuizType[];
-  answerImageIds: (string | null)[];
+  answerImageIds: string[][];
   hasThumbnail: boolean;
   isExporting: boolean;
   exportStatus: string;
@@ -46,9 +46,9 @@ export default function StepFiveExport({
                   {quiz.quizImageSource.map((source) => (
                     <p key={source} className="pl-8">{source.split("/").at(-1)}</p>
                   ))}
-                  {answerImageIds[quiz.quizNumber - 1] ? (
-                    <p className="pl-8">{quiz.id}-answer.png</p>
-                  ) : null}
+                  {quiz.answerImageSource.map((source) => (
+                    <p key={source} className="pl-8">{source.split("/").at(-1)}</p>
+                  ))}
                 </div>
               ))}
               <p className="pl-4">quizData.json</p>
@@ -70,7 +70,7 @@ export default function StepFiveExport({
               <div className="flex items-center justify-between gap-3">
                 <dt>정답 이미지</dt>
                 <dd className="font-medium text-slate-900">
-                  {answerImageIds.filter(Boolean).length}장
+                  {answerImageIds.reduce((count, images) => count + images.length, 0)}장
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">

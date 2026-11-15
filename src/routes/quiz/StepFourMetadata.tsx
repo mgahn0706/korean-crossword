@@ -9,7 +9,7 @@ export default function StepFourMetadata({
   activeQuizIndex,
   quizGroups,
   currentQuizImages,
-  currentAnswerImage,
+  currentAnswerImages,
   currentQuizMetadata,
   currentQuizId,
   meetingId,
@@ -24,7 +24,7 @@ export default function StepFourMetadata({
   activeQuizIndex: number;
   quizGroups: { id: string; imageIds: string[] }[];
   currentQuizImages: ProcessedImage[];
-  currentAnswerImage: ProcessedImage | null;
+  currentAnswerImages: ProcessedImage[];
   currentQuizMetadata: QuizMetadata;
   currentQuizId: string;
   meetingId: string;
@@ -116,17 +116,18 @@ export default function StepFourMetadata({
             <div className="border-b border-stone-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-900">
               {totalQuizItems === 0
                 ? "정답 이미지"
-                : `${activeQuizIndex + 1}번 문제 정답 이미지`}
+                : `${activeQuizIndex + 1}번 문제 정답 이미지 (${currentAnswerImages.length}장)`}
             </div>
-            <div className="flex h-24 items-center justify-center bg-white sm:h-28">
-              {currentAnswerImage ? (
-                <img
-                  src={currentAnswerImage.url}
-                  alt={`${activeQuizIndex + 1}번 문제 정답 이미지`}
-                  className="h-full w-full object-contain"
-                />
+            <div className="grid gap-2 bg-white p-2 sm:grid-cols-2">
+              {currentAnswerImages.length > 0 ? (
+                currentAnswerImages.map((image, index) => (
+                  <div key={image.id} className="relative aspect-video rounded-lg border border-stone-200 bg-stone-50">
+                    <img src={image.url} alt={`${activeQuizIndex + 1}번 문제 ${index + 1}번째 정답 이미지`} className="h-full w-full object-contain" />
+                    <span className="absolute left-2 top-2 rounded bg-slate-900 px-2 py-1 text-xs text-white">{index + 1}/{currentAnswerImages.length}</span>
+                  </div>
+                ))
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-stone-400">
+                <div className="flex h-24 items-center justify-center text-sm text-stone-400">
                   연결된 정답 이미지가 없습니다.
                 </div>
               )}

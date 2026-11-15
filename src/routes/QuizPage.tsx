@@ -62,7 +62,7 @@ export default function QuizPage() {
   const [removedImageIds, setRemovedImageIds] = useState<string[]>([]);
   const [quizImageIds, setQuizImageIds] = useState<string[]>([]);
   const [quizGroupByImageId, setQuizGroupByImageId] = useState<Record<string, string>>({});
-  const [answerImageByGroupId, setAnswerImageByGroupId] = useState<Record<string, string>>({});
+  const [answerImagesByGroupId, setAnswerImagesByGroupId] = useState<Record<string, string[]>>({});
   const [activeQuizIndex, setActiveQuizIndex] = useState(0);
   const [quizMetadataByImageId, setQuizMetadataByImageId] = useState<
     Record<string, QuizMetadata>
@@ -223,7 +223,7 @@ export default function QuizPage() {
     setRemovedImageIds([]);
     setQuizImageIds([]);
     setQuizGroupByImageId({});
-    setAnswerImageByGroupId({});
+    setAnswerImagesByGroupId({});
     setActiveQuizIndex(0);
     setQuizMetadataByImageId({});
     setThumbnailBackgroundColor("#f5e9d4");
@@ -350,8 +350,8 @@ export default function QuizPage() {
       }
 
       setQuizImageIds((items) => removeFromOrderedList(items, imageId));
-      setAnswerImageByGroupId((items) => Object.fromEntries(
-        Object.entries(items).filter(([, id]) => id !== imageId)
+      setAnswerImagesByGroupId((items) => Object.fromEntries(
+        Object.entries(items).map(([groupId, ids]) => [groupId, ids.filter((id) => id !== imageId)])
       ));
       return [...current, imageId];
     });
@@ -394,13 +394,13 @@ export default function QuizPage() {
       return groups;
     }, new Map<string, string[]>()).entries()
   ).map(([id, imageIds]) => ({ id, imageIds }));
-  const answerImageIds = quizGroups.map((group) => answerImageByGroupId[group.id] ?? null);
-  const setAnswerForQuiz = (quizIndex: number, imageId: string | null) => {
+  const answerImageIds = quizGroups.map((group) => answerImagesByGroupId[group.id] ?? []);
+  const setAnswersForQuiz = (quizIndex: number, imageIds: string[]) => {
     const group = quizGroups[quizIndex];
     if (!group) return;
-    setAnswerImageByGroupId((current) => {
+    setAnswerImagesByGroupId((current) => {
       const next = { ...current };
-      if (imageId) next[group.id] = imageId;
+      if (imageIds.length > 0) next[group.id] = imageIds;
       else delete next[group.id];
       return next;
     });
@@ -412,9 +412,9 @@ export default function QuizPage() {
   }, [quizGroups.length]);
   const totalQuizItems = quizGroups.length;
   const currentQuizGroup = quizGroups[activeQuizIndex] ?? null;
-  const currentAnswerImageId = answerImageIds[activeQuizIndex] ?? null;
-  const currentAnswerImage =
-    processedImages.find((image) => image.id === currentAnswerImageId) ?? null;
+  const currentAnswerImages = (answerImageIds[activeQuizIndex] ?? [])
+    .map((id) => processedImages.find((image) => image.id === id))
+    .filter((image): image is ProcessedImage => Boolean(image));
   const currentQuizMetadata =
     (currentQuizGroup
       ? quizMetadataByImageId[currentQuizGroup.id]
@@ -477,6 +477,9 @@ export default function QuizPage() {
       quizImageSource: group.imageIds.map((_, imageIndex) =>
         `/image/quiz/${quizId}${imageIndex === 0 ? "" : `-${imageIndex + 1}`}.png`
       ),
+      answerImageSource: (answerImageIds[index] ?? []).map((_, imageIndex) =>
+        `/image/quiz/${quizId}-answer${imageIndex === 0 ? "" : `-${imageIndex + 1}`}.png`
+      ),
       answer: metadata.answer.trim() === "" ? null : metadata.answer.trim(),
       tags: metadata.tags,
     };
@@ -503,10 +506,7 @@ export default function QuizPage() {
 
       for (const quiz of quizData) {
         const quizImageIdsForQuiz = quizGroups[quiz.quizNumber - 1]?.imageIds ?? [];
-        const answerImageId = answerImageIds[quiz.quizNumber - 1];
-        const answerImage = processedImages.find(
-          (item) => item.id === answerImageId
-        );
+        const answerImageIdsForQuiz = answerImageIds[quiz.quizNumber - 1] ?? [];
 
         for (const [imageIndex, quizImageId] of quizImageIdsForQuiz.entries()) {
           const quizImage = processedImages.find((item) => item.id === quizImageId);
@@ -518,11 +518,14 @@ export default function QuizPage() {
           }
         }
 
-        if (answerImage) {
-          quizImagesFolder.file(
-            `${quiz.id}-answer.png`,
-            await answerImage.file.arrayBuffer()
-          );
+        for (const [imageIndex, answerImageId] of answerImageIdsForQuiz.entries()) {
+          const answerImage = processedImages.find((item) => item.id === answerImageId);
+          if (answerImage) {
+            quizImagesFolder.file(
+              `${quiz.id}-answer${imageIndex === 0 ? "" : `-${imageIndex + 1}`}.png`,
+              await answerImage.file.arrayBuffer()
+            );
+          }
         }
       }
 
@@ -641,9 +644,9 @@ export default function QuizPage() {
               if (startIndex < 0) return;
               const sourceGroup = quizGroups.find((group) => group.imageIds.includes(imageId));
               if (sourceGroup?.imageIds[0] === imageId && sourceGroup.id !== groupId) {
-                setAnswerImageByGroupId((current) => {
+                setAnswerImagesByGroupId((current) => {
                   const next = { ...current };
-                  if (!next[groupId] && next[sourceGroup.id]) next[groupId] = next[sourceGroup.id];
+                  next[groupId] = Array.from(new Set([...(next[groupId] ?? []), ...(next[sourceGroup.id] ?? [])]));
                   delete next[sourceGroup.id];
                   return next;
                 });
@@ -665,7 +668,7 @@ export default function QuizPage() {
             onToggleRemovedImage={toggleRemovedImage}
             onRemoveFromSelectionRow={removeFromSelectionRow}
             onMoveImage={moveImage}
-            onSetAnswer={setAnswerForQuiz}
+            onSetAnswers={setAnswersForQuiz}
             onMoveQuizGroup={(groupId, direction) => {
               const index = quizGroups.findIndex((group) => group.id === groupId);
               const targetIndex = index + direction;
@@ -684,7 +687,7 @@ export default function QuizPage() {
             currentQuizImages={currentQuizGroup?.imageIds.map((imageId) =>
               processedImages.find((image) => image.id === imageId)
             ).filter((image): image is ProcessedImage => Boolean(image)) ?? []}
-            currentAnswerImage={currentAnswerImage}
+            currentAnswerImages={currentAnswerImages}
             currentQuizMetadata={currentQuizMetadata}
             currentQuizId={currentQuizId}
             meetingId={meetingInfo.id}
