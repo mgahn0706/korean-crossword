@@ -246,3 +246,24 @@ export async function renderThumbnailBlob({
     }, "image/png");
   });
 }
+
+export async function renderUploadedThumbnailBlob(url: string) {
+  const image = await loadImage(url);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("캔버스를 초기화할 수 없습니다.");
+  }
+
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  context.drawImage(image, 0, 0);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("썸네일 PNG 생성에 실패했습니다."));
+    }, "image/png");
+  });
+}

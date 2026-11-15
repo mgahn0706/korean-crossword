@@ -48,7 +48,7 @@ export interface QuizType {
   quizNumber: number;
   title: string;
   creators: string[];
-  quizImageSource: string;
+  quizImageSource: string[];
   answer: string | null;
   tags: Tags[];
 }

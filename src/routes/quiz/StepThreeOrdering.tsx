@@ -1,409 +1,131 @@
 import { useEffect, useState } from "react";
 import StepNavigation from "./StepNavigation";
-import type {
-  DragRow,
-  ProcessedImage,
-  SelectionRow,
-} from "./types";
+import type { ProcessedImage, SelectionRow } from "./types";
 
-type RowKey = SelectionRow | "all";
+type QuizGroup = { id: string; imageIds: string[] };
 
 export default function StepThreeOrdering({
-  processedImages,
-  removedImageIds,
-  quizImageIds,
-  answerImageIds,
-  onBack,
-  onReset,
-  onAppendToRow,
-  onToggleRemovedImage,
-  onRemoveFromSelectionRow,
-  onDragStart,
-  onDragEnd,
-  onRowDrop,
-  onNext,
+  processedImages, removedImageIds, quizImageIds, quizGroups, answerImageIds,
+  onBack, onAppendToRow, onQuizGroupChange, onToggleRemovedImage,
+  onRemoveFromSelectionRow, onMoveImage, onMoveQuizGroup, onSetAnswer, onNext,
 }: {
   processedImages: ProcessedImage[];
   removedImageIds: string[];
   quizImageIds: string[];
-  answerImageIds: string[];
+  quizGroups: QuizGroup[];
+  answerImageIds: (string | null)[];
   onBack: () => void;
-  onReset: () => void;
   onAppendToRow: (row: SelectionRow, imageId: string) => void;
+  onQuizGroupChange: (imageId: string, groupId: string) => void;
   onToggleRemovedImage: (imageId: string) => void;
   onRemoveFromSelectionRow: (row: SelectionRow, imageId: string) => void;
-  onDragStart: (imageId: string, row: DragRow) => void;
-  onDragEnd: () => void;
-  onRowDrop: (row: SelectionRow, targetId: string | null) => void;
+  onMoveImage: (row: SelectionRow, imageId: string, direction: -1 | 1) => void;
+  onMoveQuizGroup: (groupId: string, direction: -1 | 1) => void;
+  onSetAnswer: (quizIndex: number, imageId: string | null) => void;
   onNext: () => void;
 }) {
-  const rows: ReadonlyArray<readonly [RowKey, string, string[]]> = [
-    ["quiz", "선택된 퀴즈 이미지", quizImageIds],
-    ["answer", "선택된 정답 이미지", answerImageIds],
-    ["all", "전체 PNG 이미지", processedImages.map((image) => image.id)],
-  ];
-  const [dragOverRow, setDragOverRow] = useState<SelectionRow | null>(null);
-  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
-  const [previewImageId, setPreviewImageId] = useState<string | null>(null);
-  const previewImage = processedImages.find(
-    (image) => image.id === previewImageId
-  );
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const imageById = new Map(processedImages.map((image) => [image.id, image]));
+  const preview = previewId ? imageById.get(previewId) : null;
+  const secondary = "rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:border-stone-400 disabled:cursor-not-allowed disabled:opacity-40";
 
   useEffect(() => {
-    if (!previewImageId) {
-      return;
-    }
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setPreviewImageId(null);
-      }
+    if (!previewId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPreviewId(null);
     };
-
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [previewImageId]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewId]);
 
   return (
-    <section className="mt-6 space-y-6">
-      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
-              Final PNG
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-              최종 PNG 순서 설정
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              아래 원본 슬라이드를 크게 확인한 뒤 퀴즈 또는 정답으로 바로
-              추가하세요. 선택된 슬라이드는 드래그해서 순서를 바꿀 수 있습니다.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={onReset}
-              className="inline-flex items-center rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-stone-300 hover:bg-stone-50"
-            >
-              처음으로
-            </button>
-          </div>
+    <section className="mt-6 space-y-5">
+      <header className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">이미지 구성</p>
+        <h2 className="mt-1 text-2xl font-semibold text-slate-900">퀴즈와 정답 구성</h2>
+        <p className="mt-2 text-sm text-stone-600">원본에서 퀴즈 이미지를 선택하고, 퀴즈마다 정답 이미지를 지정하세요.</p>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium">
+          <span className="rounded-full bg-slate-900 px-3 py-1.5 text-white">퀴즈 {quizGroups.length}개</span>
+          <span className="rounded-full bg-stone-100 px-3 py-1.5 text-slate-700">퀴즈 이미지 {quizImageIds.length}장</span>
+          <span className="rounded-full bg-stone-100 px-3 py-1.5 text-slate-700">정답 이미지 {answerImageIds.filter(Boolean).length}장</span>
         </div>
+      </header>
 
-        <div className="mt-6 space-y-5">
-          {rows.map(([rowKey, rowLabel, rowItems]) => (
-            <div
-              key={rowKey}
-              className={`rounded-[1.5rem] border p-4 transition ${
-                dragOverRow === rowKey
-                  ? "border-sky-400 bg-sky-50/70"
-                  : "border-stone-200 bg-stone-50/60"
-              }`}
-              onDragEnter={() => {
-                if (rowKey !== "all") {
-                  setDragOverRow(rowKey);
-                  setDragOverTargetId(null);
-                }
-              }}
-              onDragLeave={(event) => {
-                if (rowKey === "all") {
-                  return;
-                }
-
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  setDragOverRow((current) => (current === rowKey ? null : current));
-                  setDragOverTargetId(null);
-                }
-              }}
-              onDragOver={(event) => {
-                if (rowKey !== "all") {
-                  event.preventDefault();
-                  setDragOverRow(rowKey);
-                }
-              }}
-              onDrop={(event) => {
-                if (rowKey === "all") {
-                  return;
-                }
-                event.preventDefault();
-                onRowDrop(rowKey, null);
-                setDragOverRow(null);
-                setDragOverTargetId(null);
-              }}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {rowLabel}
-                  </p>
-                  <p className="mt-1 text-xs text-stone-500">
-                    {rowKey === "all"
-                      ? "슬라이드를 크게 확인한 뒤 퀴즈 또는 정답 버튼으로 바로 추가하세요."
-                      : "드래그해서 순서를 바꾸거나 다른 row로 옮길 수 있습니다."}
-                  </p>
+      <section className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900">1. 원본 이미지 선택</h3>
+        <p className="mt-1 text-sm text-stone-600">이미지를 누르면 크게 볼 수 있습니다. 정답은 아래의 각 퀴즈 카드에서 선택합니다.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {processedImages.map((image, index) => {
+            const excluded = removedImageIds.includes(image.id);
+            const inQuiz = quizImageIds.includes(image.id);
+            return (
+              <article key={image.id} className={`overflow-hidden rounded-xl border border-stone-200 ${excluded ? "bg-stone-100 opacity-60" : "bg-white"}`}>
+                <button type="button" onClick={() => setPreviewId(image.id)} className="block w-full bg-stone-50" aria-label={`${index + 1}번째 이미지 크게 보기`}>
+                  <div className="relative aspect-video"><img src={image.url} alt="" className="h-full w-full object-contain" /><span className="absolute left-2 top-2 rounded-full bg-slate-900 px-2 py-1 text-xs text-white">{index + 1}</span></div>
+                </button>
+                <div className="space-y-2 p-3">
+                  <p className="truncate text-xs font-medium text-slate-800" title={image.file.name}>{image.file.name}</p>
+                  <button type="button" disabled={excluded || inQuiz} onClick={() => onAppendToRow("quiz", image.id)} className="w-full rounded-lg bg-slate-900 p-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500">{inQuiz ? "퀴즈에 추가됨" : "새 퀴즈로 추가"}</button>
+                  <button type="button" onClick={() => onToggleRemovedImage(image.id)} className="text-xs text-stone-500 underline underline-offset-2 hover:text-slate-900">{excluded ? "이미지 복원" : "이 이미지 제외"}</button>
                 </div>
-                <div
-                  className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ${
-                    "border border-stone-200 bg-white text-slate-700"
-                  }`}
-                >
-                  {rowKey === "all"
-                    ? `원본 PNG ${processedImages.length}장`
-                    : `${rowItems.length}장 선택됨`}
-                </div>
-              </div>
-
-              <div
-                className={`mt-3 min-h-24 rounded-[1.1rem] border border-dashed bg-white px-2 py-2 transition ${
-                  dragOverRow === rowKey
-                    ? "border-sky-400 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.35)]"
-                    : "border-stone-300"
-                }`}
-              >
-                {rowItems.length === 0 ? (
-                  <div className="flex h-16 items-center justify-center text-sm text-stone-400">
-                    아직 선택된 이미지가 없습니다.
-                  </div>
-                ) : (
-                  <div
-                    className={
-                      rowKey === "all"
-                        ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                        : "flex gap-2 overflow-x-auto pb-1"
-                    }
-                  >
-                    {rowItems.map((imageId, index) => {
-                      const image = processedImages.find(
-                        (item) => item.id === imageId
-                      );
-
-                      if (!image) {
-                        return null;
-                      }
-
-                      const isRemoved = removedImageIds.includes(image.id);
-
-                      return (
-                        <div
-                          key={`${rowKey}-${image.id}`}
-                          className={rowKey === "all" ? "relative min-w-0" : "relative shrink-0"}
-                        >
-                          {dragOverRow === rowKey && dragOverTargetId === image.id ? (
-                            <div className="absolute -left-1 top-2 bottom-2 z-20 w-1 rounded-full bg-sky-500 shadow-[0_0_0_3px_rgba(186,230,253,0.9)]" />
-                          ) : null}
-                          <div
-                            draggable={!isRemoved}
-                            onClick={() => setPreviewImageId(image.id)}
-                            onDragStart={() => {
-                              if (isRemoved) {
-                                return;
-                              }
-                              onDragStart(image.id, rowKey);
-                            }}
-                            onDragEnd={() => {
-                              onDragEnd();
-                              setDragOverRow(null);
-                              setDragOverTargetId(null);
-                            }}
-                            onDragOver={(event) => {
-                              if (rowKey !== "all") {
-                                event.preventDefault();
-                                setDragOverRow(rowKey);
-                                setDragOverTargetId(image.id);
-                              }
-                            }}
-                            onDrop={(event) => {
-                              if (rowKey === "all") {
-                                return;
-                              }
-                              event.preventDefault();
-                              onRowDrop(rowKey, image.id);
-                              setDragOverRow(null);
-                              setDragOverTargetId(null);
-                            }}
-                            className={`${rowKey === "all" ? "w-full" : "w-64 sm:w-72"} overflow-hidden rounded-[0.9rem] border bg-stone-50 transition ${
-                              isRemoved
-                                ? "cursor-default border-stone-200"
-                                : "cursor-pointer border-stone-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)] active:cursor-grabbing"
-                            } ${rowKey === "all" ? (isRemoved ? "" : "cursor-zoom-in") : "cursor-grab"} ${
-                              dragOverRow === rowKey && dragOverTargetId === image.id
-                                ? "border-sky-400 shadow-[0_0_0_2px_rgba(125,211,252,0.7)]"
-                                : ""
-                            }`}
-                          >
-                            <div
-                              className={`relative aspect-video overflow-hidden bg-white ${
-                                isRemoved ? "opacity-35" : ""
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (rowKey === "all") {
-                                    onToggleRemovedImage(image.id);
-                                    return;
-                                  }
-                                  onRemoveFromSelectionRow(rowKey, image.id);
-                                }}
-                                className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/92 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white"
-                                aria-label={
-                                  rowKey === "all"
-                                    ? isRemoved
-                                      ? "복원"
-                                      : "제거"
-                                    : "row에서 제거"
-                                }
-                              >
-                                {rowKey === "all" && isRemoved ? "↺" : "×"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setPreviewImageId(image.id);
-                                }}
-                                className="absolute bottom-2 right-2 z-10 inline-flex items-center justify-center rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white"
-                                aria-label={`${image.file.name} 크게 보기`}
-                              >
-                                크게 보기
-                              </button>
-                              <span className="absolute left-2 top-2 inline-flex items-center justify-center rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-md">
-                                {rowKey === "quiz"
-                                  ? `${index + 1}번 문제 이미지`
-                                  : rowKey === "answer"
-                                    ? `${index + 1}번 문제 정답 이미지`
-                                    : `${index + 1}번 PNG`}
-                              </span>
-                              <img
-                                src={image.url}
-                                alt={`${rowLabel} ${index + 1}`}
-                                className="h-full w-full object-contain"
-                              />
-                            </div>
-
-                            <div
-                              className={`px-3 py-2 text-xs text-stone-600 ${
-                                isRemoved ? "opacity-45" : ""
-                              }`}
-                            >
-                              <p
-                                className="truncate font-medium text-slate-900"
-                                title={image.file.name}
-                              >
-                                {image.file.name}
-                              </p>
-                              {rowKey === "all" ? (
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      onAppendToRow("quiz", image.id);
-                                    }}
-                                    disabled={isRemoved || quizImageIds.includes(image.id)}
-                                    className="inline-flex min-h-9 items-center justify-center rounded-[0.75rem] bg-slate-900 px-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
-                                  >
-                                    {quizImageIds.includes(image.id) ? "퀴즈에 추가됨" : "퀴즈에 추가"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      onAppendToRow("answer", image.id);
-                                    }}
-                                    disabled={isRemoved || answerImageIds.includes(image.id)}
-                                    className="inline-flex min-h-9 items-center justify-center rounded-[0.75rem] border border-stone-300 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
-                                  >
-                                    {answerImageIds.includes(image.id) ? "정답에 추가됨" : "정답에 추가"}
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </section>
 
-      <StepNavigation
-        onBack={onBack}
-        onNext={onNext}
-        nextLabel="메타데이터 편집으로"
-        nextDisabled={quizImageIds.length === 0}
-      />
-
-      {previewImage ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="슬라이드 크게 보기"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setPreviewImageId(null);
-            }
-          }}
-        >
-          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
-            <div className="flex items-center justify-between gap-4 border-b border-stone-200 px-4 py-3 sm:px-5">
-              <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
-                {previewImage.file.name}
-              </p>
-              <button
-                type="button"
-                onClick={() => setPreviewImageId(null)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-xl text-slate-700 transition hover:bg-stone-50"
-                aria-label="미리보기 닫기"
-              >
-                ×
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 bg-stone-100 p-3 sm:p-5">
-              <img
-                src={previewImage.url}
-                alt={`${previewImage.file.name} 크게 보기`}
-                className="h-full max-h-[78vh] w-full object-contain"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3 border-t border-stone-200 p-3 sm:ml-auto sm:flex sm:w-auto sm:min-w-[24rem] sm:p-4">
-              <button
-                type="button"
-                onClick={() => onAppendToRow("quiz", previewImage.id)}
-                disabled={
-                  removedImageIds.includes(previewImage.id) ||
-                  quizImageIds.includes(previewImage.id)
-                }
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[0.9rem] bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
-              >
-                {quizImageIds.includes(previewImage.id)
-                  ? "퀴즈에 추가됨"
-                  : "퀴즈에 추가"}
-              </button>
-              <button
-                type="button"
-                onClick={() => onAppendToRow("answer", previewImage.id)}
-                disabled={
-                  removedImageIds.includes(previewImage.id) ||
-                  answerImageIds.includes(previewImage.id)
-                }
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[0.9rem] border border-stone-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
-              >
-                {answerImageIds.includes(previewImage.id)
-                  ? "정답에 추가됨"
-                  : "정답에 추가"}
-              </button>
-            </div>
+      <section className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900">2. 퀴즈별 이미지</h3>
+        <p className="mt-1 text-sm text-stone-600">같은 카드에 있는 이미지는 한 퀴즈입니다. 화살표로 순서를 바꾸고, 여러 장을 합치거나 분리할 수 있습니다.</p>
+        {quizGroups.length === 0 ? <p className="mt-4 rounded-xl bg-stone-50 p-5 text-sm text-stone-500">원본에서 새 퀴즈로 추가하세요.</p> : (
+          <div className="mt-4 space-y-3">
+            {quizGroups.map((group, groupIndex) => (
+              <article key={group.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2"><span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">{groupIndex + 1}번 퀴즈</span><span className="text-xs text-stone-500">{group.imageIds.length}장</span></div>
+                  <div className="flex gap-1">
+                    {groupIndex > 0 ? <button type="button" onClick={() => onQuizGroupChange(group.imageIds[0], quizGroups[groupIndex - 1].id)} className={secondary}>이전 퀴즈에 합치기</button> : null}
+                    <button type="button" disabled={groupIndex === 0} onClick={() => onMoveQuizGroup(group.id, -1)} className={secondary} aria-label="퀴즈 앞으로 이동">↑</button>
+                    <button type="button" disabled={groupIndex === quizGroups.length - 1} onClick={() => onMoveQuizGroup(group.id, 1)} className={secondary} aria-label="퀴즈 뒤로 이동">↓</button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {group.imageIds.map((imageId, imageIndex) => {
+                    const image = imageById.get(imageId);
+                    if (!image) return null;
+                    return (
+                      <div key={imageId} className="overflow-hidden rounded-lg border border-stone-200 bg-white">
+                        <button type="button" onClick={() => setPreviewId(imageId)} className="block w-full" aria-label="퀴즈 이미지 크게 보기"><div className="relative aspect-video"><img src={image.url} alt="" className="h-full w-full object-contain" /><span className="absolute left-2 top-2 rounded bg-slate-900 px-2 py-1 text-xs text-white">{imageIndex + 1}/{group.imageIds.length}</span></div></button>
+                        <div className="flex items-center justify-between gap-2 p-2">
+                          <span className="min-w-0 truncate text-xs text-stone-600" title={image.file.name}>{image.file.name}</span>
+                          <div className="flex shrink-0 gap-1">
+                            {imageIndex > 0 ? <button type="button" onClick={() => onQuizGroupChange(imageId, imageId)} className={secondary}>여기서 분리</button> : null}
+                            <button type="button" disabled={imageIndex === 0} onClick={() => onMoveImage("quiz", imageId, -1)} className={secondary} aria-label="이미지 앞으로 이동">←</button>
+                            <button type="button" disabled={imageIndex === group.imageIds.length - 1} onClick={() => onMoveImage("quiz", imageId, 1)} className={secondary} aria-label="이미지 뒤로 이동">→</button>
+                            <button type="button" onClick={() => onRemoveFromSelectionRow("quiz", imageId)} className={secondary} aria-label="퀴즈에서 제거">×</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <label className="mt-3 block border-t border-stone-200 pt-3 text-xs font-medium text-slate-700">
+                  정답 이미지 (선택 사항)
+                  <select value={answerImageIds[groupIndex] ?? ""} onChange={(event) => onSetAnswer(groupIndex, event.target.value || null)} className="mt-1 block w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-slate-900">
+                    <option value="">정답 이미지 없음</option>
+                    {processedImages.filter((image) => !removedImageIds.includes(image.id)).map((image, index) => <option key={image.id} value={image.id}>{index + 1}. {image.file.name}</option>)}
+                  </select>
+                </label>
+                {answerImageIds[groupIndex] && imageById.get(answerImageIds[groupIndex]!) ? <button type="button" onClick={() => setPreviewId(answerImageIds[groupIndex])} className="mt-2 text-xs font-medium text-sky-700 underline underline-offset-2">선택한 정답 크게 보기</button> : null}
+              </article>
+            ))}
           </div>
-        </div>
-      ) : null}
+        )}
+      </section>
+
+      <StepNavigation onBack={onBack} onNext={onNext} nextLabel="퀴즈 정보 입력" nextDisabled={quizGroups.length === 0} />
+
+      {preview ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4" role="dialog" aria-modal="true" aria-label="이미지 크게 보기" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewId(null); }}><div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between gap-3 border-b border-stone-200 p-3"><span className="min-w-0 truncate text-sm font-medium">{preview.file.name}</span><button type="button" onClick={() => setPreviewId(null)} className={secondary}>닫기</button></div><div className="min-h-0 flex-1 bg-stone-100 p-3"><img src={preview.url} alt={preview.file.name} className="max-h-[75vh] w-full object-contain" /></div><div className="border-t border-stone-200 p-3"><button type="button" disabled={removedImageIds.includes(preview.id) || quizImageIds.includes(preview.id)} onClick={() => onAppendToRow("quiz", preview.id)} className="w-full rounded-lg bg-slate-900 p-2 text-sm font-medium text-white disabled:opacity-40">새 퀴즈로 추가</button></div></div></div> : null}
     </section>
   );
 }

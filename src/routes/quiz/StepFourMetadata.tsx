@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { QUIZ_TAGS, QUIZ_TAG_KOREAN_NAME } from "./constants";
 import { QUIZ_TAG_DESCRIPTION } from "./tagDescriptions";
 import type { ProcessedImage, QuizMetadata, Tags } from "./types";
@@ -6,13 +7,13 @@ import StepNavigation from "./StepNavigation";
 export default function StepFourMetadata({
   totalQuizItems,
   activeQuizIndex,
-  quizImageIds,
-  currentQuizImage,
+  quizGroups,
+  currentQuizImages,
   currentAnswerImage,
   currentQuizMetadata,
   currentQuizId,
   meetingId,
-  currentQuizImageSource,
+  currentQuizImageSources,
   onChangeIndex,
   onBack,
   onNext,
@@ -21,13 +22,13 @@ export default function StepFourMetadata({
 }: {
   totalQuizItems: number;
   activeQuizIndex: number;
-  quizImageIds: string[];
-  currentQuizImage: ProcessedImage | null;
+  quizGroups: { id: string; imageIds: string[] }[];
+  currentQuizImages: ProcessedImage[];
   currentAnswerImage: ProcessedImage | null;
   currentQuizMetadata: QuizMetadata;
   currentQuizId: string;
   meetingId: string;
-  currentQuizImageSource: string;
+  currentQuizImageSources: string[];
   onChangeIndex: (index: number | ((current: number) => number)) => void;
   onBack: () => void;
   onNext: () => void;
@@ -37,6 +38,9 @@ export default function StepFourMetadata({
   ) => void;
   onToggleTag: (tag: Tags) => void;
 }) {
+  const [imageSelection, setImageSelection] = useState({ quizIndex: activeQuizIndex, imageIndex: 0 });
+  const activeImageIndex = imageSelection.quizIndex === activeQuizIndex ? imageSelection.imageIndex : 0;
+  const activeImage = currentQuizImages[activeImageIndex] ?? currentQuizImages[0];
   return (
     <section className="mt-5 space-y-4">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -44,7 +48,7 @@ export default function StepFourMetadata({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
-                Quiz Preview
+                퀴즈 이미지
               </p>
               <h2 className="mt-1 text-xl font-semibold text-slate-900">
                 퀴즈 미리보기
@@ -82,21 +86,30 @@ export default function StepFourMetadata({
             <div className="border-b border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900">
               {totalQuizItems === 0
                 ? "퀴즈 없음"
-                : `${activeQuizIndex + 1}번 퀴즈 이미지`}
+                : `${activeQuizIndex + 1}번 퀴즈 이미지 (${currentQuizImages.length}장)`}
             </div>
-            <div className="aspect-[16/8.5] bg-white">
-              {currentQuizImage ? (
-                <img
-                  src={currentQuizImage.url}
-                  alt={`${activeQuizIndex + 1}번 퀴즈 이미지`}
-                  className="h-full w-full object-contain"
-                />
+            <div className="bg-white p-2">
+              {activeImage ? (
+                <div className="aspect-[16/8.5]">
+                  <img
+                    src={activeImage.url}
+                    alt={`${activeQuizIndex + 1}번 퀴즈 ${activeImageIndex + 1}번째 이미지`}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-stone-400">
                   퀴즈 이미지가 없습니다.
                 </div>
               )}
             </div>
+            {currentQuizImages.length > 1 ? (
+              <div className="flex flex-wrap gap-2 border-t border-stone-200 bg-white p-2">
+                {currentQuizImages.map((image, index) => (
+                  <button key={image.id} type="button" onClick={() => setImageSelection({ quizIndex: activeQuizIndex, imageIndex: index })} aria-label={`${index + 1}번째 퀴즈 이미지 보기`} aria-current={activeImageIndex === index ? "true" : undefined} className={`min-w-9 rounded-lg px-3 py-2 text-xs font-semibold ${activeImageIndex === index ? "bg-slate-900 text-white" : "border border-stone-200 bg-white text-slate-700"}`}>{index + 1}</button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-3 overflow-hidden rounded-[1rem] border border-stone-200 bg-stone-50">
@@ -123,7 +136,7 @@ export default function StepFourMetadata({
 
         <aside className="rounded-[1.75rem] border border-stone-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
-            Quiz Metadata
+            퀴즈 정보
           </p>
           <h2 className="mt-1 text-xl font-semibold text-slate-900">
             퀴즈 메타데이터
@@ -154,19 +167,19 @@ export default function StepFourMetadata({
               <span className="hidden text-stone-300 sm:inline">•</span>
               <span
                 className="max-w-full truncate"
-                title={currentQuizImageSource}
+                title={currentQuizImageSources.join(", ")}
               >
                 이미지
                 <span className="ml-1 font-medium text-slate-900">
-                  {currentQuizImageSource || "-"}
+                  {currentQuizImageSources.join(", ") || "-"}
                 </span>
               </span>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              {quizImageIds.map((imageId, index) => (
+              {quizGroups.map((group, index) => (
                 <button
-                  key={imageId}
+                  key={group.id}
                   type="button"
                   onClick={() => onChangeIndex(index)}
                   className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition ${
@@ -175,7 +188,7 @@ export default function StepFourMetadata({
                       : "border border-stone-200 bg-white text-slate-700 hover:border-stone-300 hover:bg-stone-50"
                   }`}
                 >
-                  {index + 1}번
+                  {index + 1}번 ({group.imageIds.length}장)
                 </button>
               ))}
             </div>

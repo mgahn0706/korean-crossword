@@ -4,7 +4,7 @@ import StepNavigation from "./StepNavigation";
 export default function StepFiveExport({
   meetingInfo,
   quizData,
-  hasAnswerImages,
+  answerImageIds,
   hasThumbnail,
   isExporting,
   exportStatus,
@@ -13,7 +13,7 @@ export default function StepFiveExport({
 }: {
   meetingInfo: MeetingType;
   quizData: QuizType[];
-  hasAnswerImages: boolean;
+  answerImageIds: (string | null)[];
   hasThumbnail: boolean;
   isExporting: boolean;
   exportStatus: string;
@@ -24,7 +24,7 @@ export default function StepFiveExport({
     <section className="mt-5 space-y-4">
       <section className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-stone-500">
-          Export
+          내보내기
         </p>
         <h2 className="mt-1 text-xl font-semibold text-slate-900">
           ZIP 다운로드 확인
@@ -39,13 +39,15 @@ export default function StepFiveExport({
             <p className="text-sm font-semibold text-slate-900">포함 파일 구조</p>
             <div className="mt-3 rounded-[1rem] bg-slate-950 px-4 py-4 font-mono text-xs leading-6 text-slate-100">
               <p>{meetingInfo.id || "meeting-export"}.zip</p>
-              {hasThumbnail ? <p className="pl-4">thumbnail.png</p> : null}
-              <p className="pl-4">quizImages/</p>
+              {hasThumbnail ? <p className="pl-4">image/quiz/meeting/{meetingInfo.id}.png</p> : null}
+              <p className="pl-4">image/quiz/</p>
               {quizData.map((quiz) => (
                 <div key={quiz.id}>
-                  <p className="pl-8">{meetingInfo.id}-{quiz.id}.png</p>
-                  {hasAnswerImages ? (
-                    <p className="pl-8">{meetingInfo.id}-{quiz.id}-answer.png</p>
+                  {quiz.quizImageSource.map((source) => (
+                    <p key={source} className="pl-8">{source.split("/").at(-1)}</p>
+                  ))}
+                  {answerImageIds[quiz.quizNumber - 1] ? (
+                    <p className="pl-8">{quiz.id}-answer.png</p>
                   ) : null}
                 </div>
               ))}
@@ -68,7 +70,7 @@ export default function StepFiveExport({
               <div className="flex items-center justify-between gap-3">
                 <dt>정답 이미지</dt>
                 <dd className="font-medium text-slate-900">
-                  {hasAnswerImages ? "포함" : "없음"}
+                  {answerImageIds.filter(Boolean).length}장
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">

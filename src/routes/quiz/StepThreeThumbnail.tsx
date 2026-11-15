@@ -17,25 +17,32 @@ export default function StepThreeThumbnail({
   backgroundColor,
   dominantColors,
   centerImage,
+  uploadedThumbnail,
   centerImageScale,
   onBack,
   onNext,
   onBackgroundColorChange,
   onCenterImageSelect,
+  onThumbnailSelect,
+  onThumbnailClear,
   onCenterImageScaleChange,
 }: {
   processedImages: ProcessedImage[];
   backgroundColor: string;
   dominantColors: string[];
   centerImage: ThumbnailAsset | null;
+  uploadedThumbnail: ThumbnailAsset | null;
   centerImageScale: number;
   onBack: () => void;
   onNext: () => void;
   onBackgroundColorChange: (value: string) => void;
   onCenterImageSelect: (file: File) => void;
+  onThumbnailSelect: (file: File) => void;
+  onThumbnailClear: () => void;
   onCenterImageScaleChange: (value: number) => void;
 }) {
   const imageInputId = useId();
+  const thumbnailInputId = useId();
   const [backgroundColorInput, setBackgroundColorInput] = useState(backgroundColor);
   const colorPickImages = processedImages.slice(0, 2);
   const previewFrameWidth = Math.min(centerImageScale * 42, 88);
@@ -59,16 +66,22 @@ export default function StepThreeThumbnail({
               </h2>
             </div>
             <p className="text-xs text-stone-500">
-              가운데 이미지 + 배경색만 설정합니다.
+              완성된 썸네일을 넣거나 배경색과 가운데 이미지로 만드세요.
             </p>
           </div>
 
           <div
             className="mt-4 overflow-hidden rounded-[1.5rem] border border-stone-200"
-            style={{ backgroundColor }}
+            style={{ backgroundColor: uploadedThumbnail ? undefined : backgroundColor }}
           >
-            <div className="aspect-video flex items-center justify-center p-6">
-              {centerImage ? (
+            <div className={`aspect-video flex items-center justify-center ${uploadedThumbnail ? "" : "p-6"}`}>
+              {uploadedThumbnail ? (
+                <img
+                  src={uploadedThumbnail.url}
+                  alt="업로드한 모임 썸네일"
+                  className="h-full w-full object-contain"
+                />
+              ) : centerImage ? (
                 <div
                   className="flex items-center justify-center"
                   style={{
@@ -93,6 +106,52 @@ export default function StepThreeThumbnail({
 
         <aside className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
           <div className="space-y-4">
+            <div>
+              <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                완성된 모임 썸네일
+              </span>
+              <label
+                htmlFor={thumbnailInputId}
+                className="flex cursor-pointer items-center justify-center rounded-[1rem] border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-center text-sm font-medium text-slate-700 transition hover:border-stone-400 hover:bg-white"
+              >
+                썸네일 이미지 업로드
+                <input
+                  id={thumbnailInputId}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) onThumbnailSelect(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <div
+                tabIndex={0}
+                onPaste={(event) => {
+                  const file = Array.from(event.clipboardData.items)
+                    .find((item) => item.type.startsWith("image/"))
+                    ?.getAsFile();
+                  if (!file) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onThumbnailSelect(file);
+                }}
+                className="mt-2 rounded-[1rem] border border-stone-200 bg-white px-3 py-2 text-center text-xs text-stone-600 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              >
+                여기를 클릭한 뒤 Ctrl+V 또는 Cmd+V로 썸네일 붙여넣기
+              </div>
+              {uploadedThumbnail ? (
+                <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-slate-900">선택됨: {uploadedThumbnail.name}</span>
+                  <button type="button" onClick={onThumbnailClear} className="shrink-0 font-medium text-sky-700 hover:underline">
+                    빌더 사용
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
                 배경색

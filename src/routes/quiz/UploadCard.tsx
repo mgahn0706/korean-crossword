@@ -82,7 +82,7 @@ export default function UploadCard({
         ) : (
           <div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-stone-600 transition group-hover:text-stone-900">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-stone-300 bg-white text-[11px]">
-              PNG
+              {accept === "application/pdf" ? "PDF" : "PNG"}
             </span>
             {buttonLabel}
           </div>
